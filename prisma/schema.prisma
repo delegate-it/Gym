@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  profile   Profile?
+  sessions  Session[]
+  plans     Plan[]
+  workouts  Workout[]
+  weights   BodyWeight[]
+}
+
+model LoginCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Profile {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String?
+  sex           String
+  age           Int
+  heightCm      Float
+  weightKg      Float
+  goal          String
+  experience    String
+  daysPerWeek   Int
+  sessionMin    Int
+  equipment     String
+  limitations   String   @default("")
+  activity      String
+  diet          String
+  mealsPerDay   Int
+  units         String   @default("kg")
+  updatedAt     DateTime @updatedAt
+}
+
+model Plan {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  data      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId, active])
+}
+
+model Workout {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId      String?
+  dayIndex    Int?
+  title       String
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  sets        WorkoutSet[]
+
+  @@index([userId, startedAt])
+}
+
+model WorkoutSet {
+  id         String   @id @default(cuid())
+  workoutId  String
+  workout    Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId String
+  setNumber  Int
+  weight     Float?
+  reps       Int?
+  done       Boolean  @default(false)
+
+  @@index([exerciseId])
+}
+
+model BodyWeight {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg Float
+  date     DateTime @default(now())
+
+  @@index([userId, date])
+}
