@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gym — your training, simplified",
+  title: "GymWise — your training, simplified",
   description: "Personal training plans, workout tracking and nutrition targets.",
 };
 

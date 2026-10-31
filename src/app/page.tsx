@@ -9,7 +9,10 @@ export default async function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
       <div className="mb-8">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-2xl">🏋️</div>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-2xl">🏋️</div>
+          <span className="text-2xl font-bold tracking-tight">GymWise</span>
+        </div>
         <h1 className="text-3xl font-bold tracking-tight">Train smarter.<br />Keep it simple.</h1>
         <p className="mt-3 muted">
           Answer a few questions and get a training plan built on proven programs, nutrition targets that fit your goal,
