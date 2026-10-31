@@ -1,4 +1,4 @@
-# Gym
+# GymWise
 
 A simple, mobile-first web app for planning and tracking gym training.
 
@@ -73,7 +73,7 @@ Any other SMTP provider works too (Brevo, Postmark, Amazon SES…); just change 
    | `SMTP_PORT` | `587` |
    | `SMTP_USER` | `apikey` (literally this word) |
    | `SMTP_PASS` | your SendGrid API key (`SG.…`) |
-   | `MAIL_FROM` | `Gym <the-sender-you-verified@yourcompany.com>` |
+   | `MAIL_FROM` | `GymWise <no-reply@gymwise.co.za>` (an address on your SendGrid-verified domain) |
 
 4. Click **Deploy**. The build creates the database tables automatically (`prisma migrate deploy`). Your app is live at `https://<project>.vercel.app`, and every push to `main` redeploys it.
 

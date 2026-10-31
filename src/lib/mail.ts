@@ -17,10 +17,10 @@ export async function sendLoginCode(email: string, code: string) {
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
   });
   await transport.sendMail({
-    from: process.env.MAIL_FROM || "Gym <no-reply@example.com>",
+    from: process.env.MAIL_FROM || "GymWise <no-reply@gymwise.co.za>",
     to: email,
-    subject: `Your Gym sign-in code: ${code}`,
+    subject: `Your GymWise sign-in code: ${code}`,
     text: `Your sign-in code is ${code}\n\nIt expires in 10 minutes. If you didn't ask for it, ignore this email.`,
-    html: `<p>Your sign-in code is</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>It expires in 10 minutes. If you didn't ask for it, ignore this email.</p>`,
+    html: `<p>Your GymWise sign-in code is</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>It expires in 10 minutes. If you didn't ask for it, ignore this email.</p>`,
   });
 }
