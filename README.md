@@ -26,11 +26,11 @@ Exercise data and images come from [free-exercise-db](https://github.com/yuhonas
 
 ## Run locally
 
-You need a Postgres database: a free [Neon](https://neon.tech) database or a local Postgres.
+You need a Postgres database: the linked Neon project (`neon deploy` fills in `.env`) or a local Postgres.
 
 ```bash
 npm install
-cp .env.example .env      # set DATABASE_URL and AUTH_SECRET
+cp .env.example .env      # set DATABASE_URL, DATABASE_URL_UNPOOLED and AUTH_SECRET
 npm run setup             # creates the database tables
 npm run dev               # http://localhost:3000
 ```
@@ -42,8 +42,16 @@ If no SMTP server is configured, development mode shows the sign-in code on scre
 All three services have free plans that are more than enough to get started.
 
 ### 1. Database: Neon
-1. Sign up at https://neon.tech and create a project (pick the region closest to your users).
-2. On the project dashboard click **Connect**, turn **off** "Connection pooling", and copy the connection string (`postgresql://…?sslmode=require`). This is your `DATABASE_URL`.
+This repo is linked to a Neon project (`.neon`, `neon.ts`). With the [Neon CLI](https://neon.com/docs/cli) (`npm i -g neon`):
+
+```bash
+neon login
+neon deploy      # applies neon.ts and writes DATABASE_URL + DATABASE_URL_UNPOOLED to .env
+```
+
+Without the CLI: in the Neon console click **Connect** and copy two connection strings, one with **Connection pooling on** (`DATABASE_URL`) and one with it **off** (`DATABASE_URL_UNPOOLED`).
+
+The app connects through the pooled URL using `pg` + Prisma's driver adapter (`src/lib/db.ts`); migrations use the direct URL.
 
 ### 2. Email: Brevo (sends the sign-in codes)
 1. Sign up at https://www.brevo.com (free: 300 emails/day).
@@ -57,7 +65,8 @@ All three services have free plans that are more than enough to get started.
 
    | Name | Value |
    |---|---|
-   | `DATABASE_URL` | Neon connection string from step 1 |
+   | `DATABASE_URL` | Neon pooled connection string from step 1 |
+   | `DATABASE_URL_UNPOOLED` | Neon direct connection string from step 1 |
    | `AUTH_SECRET` | a long random string (`openssl rand -hex 32`, or any password generator, 40+ characters) |
    | `SMTP_HOST` | `smtp-relay.brevo.com` |
    | `SMTP_PORT` | `587` |

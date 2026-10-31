@@ -13,9 +13,14 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@neon/config": "^1.10.0",
+    "@neon/env": "^1.6.8",
+    "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.16.2",
+    "@vercel/functions": "^3.10.5",
     "next": "^16.4.3",
     "nodemailer": "^10.3.1",
+    "pg": "^8.23.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "server-only": "^0.0.1"
@@ -24,6 +29,7 @@
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "prisma": "^6.16.2",
