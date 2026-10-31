@@ -20,29 +20,59 @@ A simple, mobile-first web app for planning and tracking gym training.
 
 ## Tech
 
-Next.js 16 (App Router, server actions) · React 19 · Tailwind CSS 4 · Prisma (SQLite locally, Postgres in production) · Nodemailer.
+Next.js 16 (App Router, server actions) · React 19 · Tailwind CSS 4 · Prisma + Postgres · Nodemailer.
 
 Exercise data and images come from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is released into the public domain (Unlicense).
 
 ## Run locally
 
+You need a Postgres database: a free [Neon](https://neon.tech) database or a local Postgres.
+
 ```bash
 npm install
-cp .env.example .env      # then set AUTH_SECRET
-npm run setup             # creates the SQLite database
+cp .env.example .env      # set DATABASE_URL and AUTH_SECRET
+npm run setup             # creates the database tables
 npm run dev               # http://localhost:3000
 ```
 
 If no SMTP server is configured, development mode shows the sign-in code on screen and prints it to the terminal.
 
-## Deploy
+## Deploy for free (Vercel + Neon + Brevo)
 
-1. **Database:** in `prisma/schema.prisma`, change `provider = "sqlite"` to `"postgresql"` and set `DATABASE_URL` (Neon, Supabase, Railway, etc.). Then run `npx prisma db push`.
-2. **Email:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` (e.g. Resend, Postmark, SendGrid, Amazon SES). In production, sign-in won't work without these.
-3. **Secret:** set `AUTH_SECRET` to a long random value (`openssl rand -hex 32`).
-4. `npm run build && npm start`, or deploy to Vercel or any Node host.
+All three services have free plans that are more than enough to get started.
 
-**Optional:** run `npm run images` to download all exercise images into `public/exercise-images`, then set `NEXT_PUBLIC_EXERCISE_IMAGE_BASE="/exercise-images"`, so images are served from your own site rather than GitHub.
+### 1. Database: Neon
+1. Sign up at https://neon.tech and create a project (pick the region closest to your users).
+2. On the project dashboard click **Connect**, turn **off** "Connection pooling", and copy the connection string (`postgresql://…?sslmode=require`). This is your `DATABASE_URL`.
+
+### 2. Email: Brevo (sends the sign-in codes)
+1. Sign up at https://www.brevo.com (free: 300 emails/day).
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: add the address emails should come from (e.g. `you@yourcompany.com`) and confirm it from your inbox.
+3. **SMTP & API → SMTP**: note the login and click **Generate a new SMTP key**.
+
+### 3. App: Vercel
+1. Sign up at https://vercel.com with your GitHub account.
+2. **Add New → Project**, import this repository. Framework is detected as Next.js; keep the defaults.
+3. Under **Environment Variables** add:
+
+   | Name | Value |
+   |---|---|
+   | `DATABASE_URL` | Neon connection string from step 1 |
+   | `AUTH_SECRET` | a long random string (`openssl rand -hex 32`, or any password generator, 40+ characters) |
+   | `SMTP_HOST` | `smtp-relay.brevo.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_USER` | Brevo SMTP login |
+   | `SMTP_PASS` | Brevo SMTP key |
+   | `MAIL_FROM` | `Gym <the-sender-you-verified@yourcompany.com>` |
+
+4. Click **Deploy**. The build creates the database tables automatically (`prisma migrate deploy`). Your app is live at `https://<project>.vercel.app`, and every push to `main` redeploys it.
+
+Optional: add your own domain under **Project → Settings → Domains**.
+
+**Optional:** run `npm run images` to download all exercise images into `public/exercise-images`, commit them, then set `NEXT_PUBLIC_EXERCISE_IMAGE_BASE="/exercise-images"`. Images are then served from your own site instead of GitHub.
+
+### Changing the database schema
+Edit `prisma/schema.prisma`, then run `npx prisma migrate dev --name <change>` against a development database and commit the new folder in `prisma/migrations`. It is applied in production on the next deploy.
 
 ## Project layout
 
