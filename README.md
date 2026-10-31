@@ -37,9 +37,9 @@ npm run dev               # http://localhost:3000
 
 If no SMTP server is configured, development mode shows the sign-in code on screen and prints it to the terminal.
 
-## Deploy for free (Vercel + Neon + Brevo)
+## Deploy (Vercel + Neon + SendGrid)
 
-All three services have free plans that are more than enough to get started.
+Vercel and Neon have free plans that are more than enough to get started.
 
 ### 1. Database: Neon
 This repo is linked to a Neon project (`.neon`, `neon.ts`). With the [Neon CLI](https://neon.com/docs/cli) (`npm i -g neon`):
@@ -53,10 +53,11 @@ Without the CLI: in the Neon console click **Connect** and copy two connection s
 
 The app connects through the pooled URL using `pg` + Prisma's driver adapter (`src/lib/db.ts`); migrations use the direct URL.
 
-### 2. Email: Brevo (sends the sign-in codes)
-1. Sign up at https://www.brevo.com (free: 300 emails/day).
-2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: add the address emails should come from (e.g. `you@yourcompany.com`) and confirm it from your inbox.
-3. **SMTP & API → SMTP**: note the login and click **Generate a new SMTP key**.
+### 2. Email: SendGrid (sends the sign-in codes)
+1. In SendGrid go to **Settings → Sender Authentication**. Either verify a single sender (the address the codes come from), or authenticate your domain for better deliverability.
+2. **Settings → API Keys → Create API Key**: choose Restricted Access with only **Mail Send** enabled, and copy the key.
+
+Any other SMTP provider works too (Brevo, Postmark, Amazon SES…); just change the `SMTP_*` values.
 
 ### 3. App: Vercel
 1. Sign up at https://vercel.com with your GitHub account.
@@ -68,10 +69,10 @@ The app connects through the pooled URL using `pg` + Prisma's driver adapter (`s
    | `DATABASE_URL` | Neon pooled connection string from step 1 |
    | `DATABASE_URL_UNPOOLED` | Neon direct connection string from step 1 |
    | `AUTH_SECRET` | a long random string (`openssl rand -hex 32`, or any password generator, 40+ characters) |
-   | `SMTP_HOST` | `smtp-relay.brevo.com` |
+   | `SMTP_HOST` | `smtp.sendgrid.net` |
    | `SMTP_PORT` | `587` |
-   | `SMTP_USER` | Brevo SMTP login |
-   | `SMTP_PASS` | Brevo SMTP key |
+   | `SMTP_USER` | `apikey` (literally this word) |
+   | `SMTP_PASS` | your SendGrid API key (`SG.…`) |
    | `MAIL_FROM` | `Gym <the-sender-you-verified@yourcompany.com>` |
 
 4. Click **Deploy**. The build creates the database tables automatically (`prisma migrate deploy`). Your app is live at `https://<project>.vercel.app`, and every push to `main` redeploys it.
