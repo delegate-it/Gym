@@ -1,9 +1,11 @@
 import { exercises as allExercises, getExercise, type Exercise } from "./exercises";
+import { injuryConflicts, injuryLabel, type Limitation } from "./injuries";
+
+export type { Limitation };
 
 export type Goal = "muscle" | "strength" | "fat_loss" | "fitness";
 export type Experience = "beginner" | "intermediate" | "advanced";
 export type EquipmentAccess = "gym" | "dumbbells" | "bodyweight";
-export type Limitation = "knees" | "lower_back" | "shoulders";
 
 export type PlannerInput = {
   goal: Goal;
@@ -32,6 +34,7 @@ export type PlanDay = {
   weekday: string;
   exercises: PlanExercise[];
   cardio?: string;
+  note?: string;
 };
 
 export type TrainingPlan = {
@@ -45,6 +48,8 @@ export type TrainingPlan = {
   variant?: number;
   /** Set once the user has edited the plan by hand. */
   edited?: boolean;
+  /** What the last injury update changed, shown once on the Plan page. */
+  injuryChanges?: InjuryChange[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -243,9 +248,15 @@ const PATTERNS: Record<Pattern, Option[]> = {
 
 const EQ_RANK: Record<EquipmentAccess, number> = { bodyweight: 0, dumbbells: 1, gym: 2 };
 
+/** True when an option suits the user's equipment and doesn't load any injured area. */
+function suits(o: Option, input: Pick<PlannerInput, "equipment" | "limitations">) {
+  return EQ_RANK[o.eq] <= EQ_RANK[input.equipment] &&
+    !o.avoid?.some((l) => input.limitations.includes(l)) &&
+    injuryConflicts(getExercise(o.id), input.limitations).length === 0;
+}
+
 function pick(pattern: Pattern, role: Role, input: PlannerInput, usedToday: Set<string>, usedInPlan: Set<string>, variant: number): string | null {
-  const allowed = PATTERNS[pattern].filter((o) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment]);
-  const safe = allowed.filter((o) => !o.avoid?.some((l) => input.limitations.includes(l)));
+  const safe = PATTERNS[pattern].filter((o) => suits(o, input));
   // Main lifts stay the best option; other slots prefer variety across the week.
   // Never repeat an exercise within the same workout.
   const fresh = safe.filter((o) => !usedToday.has(o.id));
@@ -437,6 +448,9 @@ function minutesFor(s: Scheme) {
   return (s.sets * (35 + s.restSec)) / 60 + 1;
 }
 
+/** Safe extra work used when injuries leave a day with too few exercises. */
+const INJURY_FILLERS: Pattern[] = ["h_pull", "rear_delt", "glutes", "leg_curl", "core", "core_alt", "calves"];
+
 const CARDIO: Record<Goal, string | undefined> = {
   fat_loss: "Finish with 10–20 min of intervals: 30 s hard / 60 s easy (bike, rower, brisk incline walk or skipping).",
   fitness: "Finish with 10–20 min of steady cardio at a pace where you can still talk.",
@@ -480,7 +494,22 @@ export function generatePlan(input: PlannerInput): TrainingPlan {
       });
     }
 
-    return { name: tpl.name, focus: tpl.focus, weekday: WEEKDAYS[days][i], exercises, cardio };
+    // Injuries can rule out most of a day (e.g. every push-up for a wrist injury at home).
+    // Keep the session worthwhile with safe work for other areas.
+    let note: string | undefined;
+    if (input.limitations.length && exercises.length < 3) {
+      for (const pattern of INJURY_FILLERS) {
+        if (exercises.length >= 3) break;
+        const id = pick(pattern, "accessory", input, used, usedInPlan, variant);
+        if (!id || used.has(id)) continue;
+        const s = scheme(input.goal, "accessory", input.experience);
+        used.add(id);
+        exercises.push({ exerciseId: id, sets: s.sets, reps: repsFor(id, s.reps, input.goal), restSec: s.restSec });
+      }
+      note = "Adjusted for your injuries: exercises that load the injured area were left out, and safe work for other areas was added.";
+    }
+
+    return { name: tpl.name, focus: tpl.focus, weekday: WEEKDAYS[days][i], exercises, cardio, note };
   });
 
   const goalText: Record<Goal, string> = {
@@ -510,7 +539,10 @@ function progressionRules(input: PlannerInput): string[] {
   if (input.goal === "strength") rules[0] = "Main lifts: if you complete every set of 5, add 2.5 kg (upper) or 5 kg (lower) next time. Fail twice at the same weight? Drop 10% and build back up.";
   if (input.experience === "beginner") rules.push("You're new: the first 2 weeks are about learning the movements. Start light and add weight steadily.");
   else rules.push("Every 6–8 weeks, take a lighter week (about half the sets) to recover.");
-  if (input.limitations.length) rules.push("Exercises that commonly aggravate your listed limitations were swapped for safer options. Stop any exercise that causes pain and consult a professional.");
+  if (input.limitations.length) {
+    const areas = input.limitations.map((l) => injuryLabel(l).toLowerCase()).join(", ");
+    rules.push(`Injuries (${areas}): exercises that commonly load these areas were left out or swapped for safer options. Stop any exercise that causes pain, and check with a physiotherapist or doctor if the injury is recent or serious.`);
+  }
   return rules;
 }
 
@@ -532,11 +564,11 @@ const LEVEL_RANK: Record<string, number> = { beginner: 0, intermediate: 1, exper
 
 /**
  * Exercises that can replace `exerciseId`: first the curated options for the same movement
- * (filtered for the user's equipment and problem areas), then other exercises for the same muscle.
+ * (filtered for the user's equipment and injuries), then other exercises for the same muscle.
  */
 export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience">) {
   const current = getExercise(exerciseId);
-  const fits = (o: Option) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment] && !o.avoid?.some((l) => input.limitations.includes(l));
+  const fits = (o: Option) => suits(o, input);
 
   const recommended: Exercise[] = [];
   for (const options of Object.values(PATTERNS)) {
@@ -557,6 +589,7 @@ export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "e
       e.primary.includes(muscle) &&
       (!allowedEq || allowedEq.includes(e.equipment)) &&
       (LEVEL_RANK[e.level] ?? 0) <= maxLevel &&
+      injuryConflicts(e, input.limitations).length === 0 &&
       !recommended.includes(e))
     .sort((a, b) =>
       Number(b.mechanic === current?.mechanic) - Number(a.mechanic === current?.mechanic) ||
@@ -588,43 +621,84 @@ function libraryTier(equipment?: string): EquipmentAccess {
   return equipment === "dumbbell" ? "dumbbells" : "gym";
 }
 
+type ReplaceInput = Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal">;
+
 /**
- * Replaces every exercise in a day with a different one for the same movement (or, failing that,
- * the same muscle). Prefers the same equipment level as the current exercise, never repeats an
- * exercise within the day, and picks at random so each call gives a new mix.
+ * A similar hand-picked exercise to replace `item` with: same main muscle, trained the same way
+ * (compound/isolation, push/pull), safe for the user's equipment and injuries, and not already in
+ * the day. Prefers the same movement on the same equipment. Returns null when nothing fits.
  */
-export function shuffleDay(day: PlanDay, input: Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal">, random = Math.random): PlanDay {
-  const fits = (o: Option) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment] && !o.avoid?.some((l) => input.limitations.includes(l));
+function findReplacement(item: PlanExercise, day: PlanDay, input: ReplaceInput, used: Set<string>, random: () => number, relaxed = false) {
   const pickRandom = <T,>(items: T[]) => items[Math.floor(random() * items.length)];
+  const taken = (id: string) => id === item.exerciseId || used.has(id) || day.exercises.some((e) => e.exerciseId === id && e !== item);
+  const patterns = Object.values(PATTERNS).filter((options) => options.some((o) => o.id === item.exerciseId));
+  const currentEq = patterns.flat().find((o) => o.id === item.exerciseId)?.eq;
+  const current = getExercise(item.exerciseId);
+  // Same main muscle trained the same way, so a squat isn't replaced by a glute bridge or a
+  // bench press by a neck press.
+  const similar = (o: Option) => {
+    const ex = getExercise(o.id);
+    return !!ex && suits(o, input) && !taken(o.id) && ex.primary[0] === current?.primary[0] &&
+      (!current?.mechanic || ex.mechanic === current.mechanic) && (!current?.force || ex.force === current.force);
+  };
+  const samePattern = patterns.flat().filter(similar);
+  const anyPattern = CURATED.filter(similar);
+  const tier = currentEq ?? libraryTier(current?.equipment);
+
+  // Best first: same movement on the same equipment, then any similar exercise on the same
+  // equipment, then the same movement at another equipment level, then anything similar.
+  return (
+    pickRandom(samePattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
+    pickRandom(anyPattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
+    pickRandom(samePattern.map((o) => o.id)) ??
+    pickRandom(anyPattern.map((o) => o.id)) ??
+    // For injuries: the movement's safe fallback even if it trains a neighbouring muscle
+    // (e.g. a glute bridge in place of a squat for bad knees), in the planner's own order.
+    (relaxed ? patterns.flat().find((o) => suits(o, input) && !taken(o.id) && getExercise(o.id))?.id : undefined) ??
+    null
+  );
+}
+
+/**
+ * Replaces every exercise in a day with a different, similar one, keeping sets and rest. Picks at
+ * random so each call gives a new mix; an exercise with no suitable alternative stays.
+ */
+export function shuffleDay(day: PlanDay, input: ReplaceInput, random = Math.random): PlanDay {
   const used = new Set<string>();
-
   const exercises = day.exercises.map((item) => {
-    const taken = (id: string) => id === item.exerciseId || used.has(id) || day.exercises.some((e) => e.exerciseId === id && e !== item);
-    const patterns = Object.values(PATTERNS).filter((options) => options.some((o) => o.id === item.exerciseId));
-    const currentEq = patterns.flat().find((o) => o.id === item.exerciseId)?.eq;
-    // Only hand-picked exercises, training the same main muscle the same way (compound/isolation,
-    // push/pull), so a squat isn't replaced by a glute bridge or a bench press by a neck press.
-    const current = getExercise(item.exerciseId);
-    const similar = (o: Option) => {
-      const ex = getExercise(o.id);
-      return !!ex && fits(o) && !taken(o.id) && ex.primary[0] === current?.primary[0] &&
-        (!current?.mechanic || ex.mechanic === current.mechanic) && (!current?.force || ex.force === current.force);
-    };
-    const samePattern = patterns.flat().filter(similar);
-    const anyPattern = CURATED.filter(similar);
-    const tier = currentEq ?? libraryTier(current?.equipment);
-
-    // Best first: same movement on the same equipment, then any similar exercise on the same
-    // equipment, then the same movement at another equipment level, then anything similar.
-    const newId =
-      pickRandom(samePattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
-      pickRandom(anyPattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
-      pickRandom(samePattern.map((o) => o.id)) ??
-      pickRandom(anyPattern.map((o) => o.id));
+    const newId = findReplacement(item, day, input, used, random);
     if (!newId) return item;
     used.add(newId);
     return swapPrescription(item, newId, input.goal);
   });
-
   return { ...day, exercises };
+}
+
+export type InjuryChange = { day: string; from: string; to: string | null };
+
+/**
+ * Makes an existing plan safe for the user's injuries without rebuilding it, so their own edits
+ * survive: each exercise that loads an injured area is swapped for the closest safe alternative,
+ * or removed when there is none.
+ */
+export function adaptPlanToInjuries(plan: TrainingPlan, input: ReplaceInput): { plan: TrainingPlan; changes: InjuryChange[] } {
+  const changes: InjuryChange[] = [];
+  const days = plan.days.map((day) => {
+    const used = new Set<string>();
+    const exercises: PlanExercise[] = [];
+    for (const item of day.exercises) {
+      if (injuryConflicts(getExercise(item.exerciseId), input.limitations).length === 0) {
+        exercises.push(item);
+        continue;
+      }
+      const newId = findReplacement(item, day, input, used, () => 0, true);
+      changes.push({ day: day.name, from: item.exerciseId, to: newId });
+      if (newId) {
+        used.add(newId);
+        exercises.push(swapPrescription(item, newId, input.goal));
+      }
+    }
+    return { ...day, exercises };
+  });
+  return { plan: { ...plan, days, progression: progressionRules(input as PlannerInput) }, changes };
 }

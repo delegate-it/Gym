@@ -3,8 +3,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { type EquipmentAccess, type Experience, type Goal, type Limitation } from "@/lib/planner";
-import { createPlan, getActivePlanRecord } from "@/lib/plans";
+import { revalidatePath } from "next/cache";
+import { requireUser } from "@/lib/auth";
+import { parseLimitations } from "@/lib/injuries";
+import { adaptPlanToInjuries, type EquipmentAccess, type Experience, type Goal } from "@/lib/planner";
+import { createPlan, getActivePlanRecord, plannerInput, savePlan } from "@/lib/plans";
 
 const pickOne = <T extends string>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback;
@@ -25,7 +28,7 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   const weightKg = num(form.get("weightKg"), 30, 300);
   if (!age || !heightCm || !weightKg) return { error: "Please check your age, height and weight." };
 
-  const limitations = form.getAll("limitations").filter((l): l is Limitation => ["knees", "lower_back", "shoulders"].includes(String(l)));
+  const limitations = parseLimitations(form.getAll("limitations").map(String));
   const data = {
     name: String(form.get("name") || "").trim().slice(0, 60) || null,
     sex: pickOne(form.get("sex"), ["male", "female"] as const, "male"),
@@ -51,14 +54,36 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
 
   // Only rebuild the plan when something that affects training changed.
   const planKeys = ["goal", "experience", "daysPerWeek", "sessionMin", "equipment", "limitations"] as const;
-  const planChanged = isNew || planKeys.some((k) => String(user.profile?.[k]) !== String(data[k]));
-  if (planChanged || form.get("regenerate")) {
+  const changed = planKeys.filter((k) => String(user.profile?.[k]) !== String(data[k]));
+  if (!isNew && changed.length === 1 && changed[0] === "limitations") {
+    // Only injuries changed: adapt the current plan instead of rebuilding it.
+    await applyInjuries(user.id, data);
+  } else if (isNew || changed.length || form.get("regenerate")) {
     // Keep the split the user chose, if it still fits their number of days.
     const current = await getActivePlanRecord(user.id);
     await createPlan(user.id, data, { splitId: current?.plan.splitId });
   }
 
   redirect(isNew ? "/plan?welcome=1" : "/today");
+}
+
+/** Swaps out exercises in the active plan that load an injured area. */
+async function applyInjuries(userId: string, profile: Parameters<typeof plannerInput>[0]) {
+  const current = await getActivePlanRecord(userId);
+  if (!current) return;
+  const { plan, changes } = adaptPlanToInjuries(current.plan, plannerInput(profile));
+  await savePlan(current.id, { ...plan, injuryChanges: changes }, { byUser: false });
+}
+
+/** Saves the user's injured areas and adapts their plan to them. */
+export async function updateInjuries(form: FormData) {
+  const user = await requireUser();
+  const limitations = parseLimitations(form.getAll("limitations").map(String)).join(",");
+  await db.profile.update({ where: { userId: user.id }, data: { limitations } });
+  await applyInjuries(user.id, { ...user.profile, limitations });
+  revalidatePath("/plan");
+  revalidatePath("/today");
+  redirect("/plan?injuries=1");
 }
 
 export async function deleteAccount() {

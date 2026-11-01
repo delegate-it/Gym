@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CATEGORIES, EQUIPMENT, MUSCLES, searchExercises } from "@/lib/exercises";
+import { requireUser } from "@/lib/auth";
+import { injuryConflicts, injuryLabel, parseLimitations } from "@/lib/injuries";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { ActionButton } from "@/components/ActionButton";
 import { addExercise } from "@/app/actions/workout";
@@ -28,6 +30,7 @@ function pickerMode(sp: Search) {
 export default async function ExercisesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const picker = pickerMode(sp);
+  const injured = parseLimitations((await requireUser()).profile.limitations);
   const results = searchExercises(sp);
   const page = Math.max(1, Number(sp.page) || 1);
   const shown = results.slice(0, page * PAGE);
@@ -75,7 +78,12 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
               <div className="min-w-0">
                 <p className="truncate font-semibold">{e.name}</p>
                 <p className="truncate text-xs muted">{e.primary.map(cap).join(", ")} · {cap(e.equipment)}</p>
-                <p className="mt-1 text-xs"><span className="chip">{cap(e.level)}</span></p>
+                <p className="mt-1 flex flex-wrap gap-1 text-xs">
+                  <span className="chip">{cap(e.level)}</span>
+                  {injuryConflicts(e, injured).map((l) => (
+                    <span key={l} className="chip bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">⚠️ {injuryLabel(l)}</span>
+                  ))}
+                </p>
               </div>
             </Link>
             {picker && <ActionButton action={picker.action(e.id)}>{picker.label}</ActionButton>}

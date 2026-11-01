@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveProfile } from "@/app/actions/profile";
+import { INJURY_AREAS } from "@/lib/injuries";
 
 type Values = {
   name: string; sex: string; age: string; heightCm: string; weightKg: string; units: "kg" | "lb";
@@ -126,7 +127,7 @@ export function ProfileForm({ initial, isEdit = false }: { initial?: Partial<Val
       ),
     },
     {
-      title: "Equipment & body",
+      title: "Equipment & injuries",
       valid: !!v.equipment,
       body: (
         <div className="space-y-5">
@@ -137,20 +138,20 @@ export function ProfileForm({ initial, isEdit = false }: { initial?: Partial<Val
               { value: "bodyweight", icon: "🤸", label: "Bodyweight only", hint: "No equipment" },
             ]} />
           </Q>
-          <Q title="Any problem areas? (optional)">
+          <Q title="Any injuries or pain? (optional)">
             <div className="flex flex-wrap gap-2">
-              {[["knees", "Knees"], ["lower_back", "Lower back"], ["shoulders", "Shoulders"]].map(([val, label]) => {
-                const on = v.limitations.includes(val);
+              {INJURY_AREAS.map(({ id, label }) => {
+                const on = v.limitations.includes(id);
                 return (
-                  <button type="button" key={val}
-                    onClick={() => set("limitations")(on ? v.limitations.filter((l) => l !== val) : [...v.limitations, val])}
+                  <button type="button" key={id}
+                    onClick={() => set("limitations")(on ? v.limitations.filter((l) => l !== id) : [...v.limitations, id])}
                     className={`rounded-full border-2 px-4 py-2 text-sm font-medium ${on ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10" : "border-zinc-200 dark:border-zinc-800"}`}>
                     {on ? "✓ " : ""}{label}
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs muted">We&apos;ll avoid exercises that commonly aggravate these.</p>
+            <p className="text-xs muted">We&apos;ll leave out exercises that load these areas and pick safer ones. You can update this any time.</p>
           </Q>
         </div>
       ),

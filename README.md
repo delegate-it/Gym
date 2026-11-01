@@ -3,7 +3,7 @@
 A simple, mobile-first web app for planning and tracking gym training.
 
 - **Email sign-in, no passwords.** Users enter their email and get a 6-digit code.
-- **A personal training plan.** A 5-step questionnaire (body stats, goal, experience, days/time available, equipment, problem areas, lifestyle, diet) produces a plan based on proven programs:
+- **A personal training plan.** A 5-step questionnaire (body stats, goal, experience, days/time available, equipment, injuries, lifestyle, diet) produces a plan based on proven programs:
   | Days/week | Split | Based on |
   |---|---|---|
   | 2 | Full Body A/B | Starting Strength / StrongLifts |
@@ -12,7 +12,8 @@ A simple, mobile-first web app for planning and tracking gym training.
   | 5 | Upper/Lower + Push/Pull/Legs | PHAT-style hybrid |
   | 6 | Push/Pull/Legs ×2 | Reddit PPL |
 
-  Sets, reps and rest follow the goal (strength, muscle, fat loss or fitness) and experience level. Exercises are picked to suit the available equipment (full gym, dumbbells or bodyweight), and ones that commonly aggravate knees, lower back or shoulders are swapped for safer options. The number of exercises fits the session length.
+  Sets, reps and rest follow the goal (strength, muscle, fat loss or fitness) and experience level. Exercises are picked to suit the available equipment (full gym, dumbbells or bodyweight), and exercises that load an injured area are left out or swapped for safer options. The number of exercises fits the session length.
+- **Injury-aware.** Users mark injured or painful areas (neck, shoulders, elbows, wrists, lower back, hips, knees, ankles) during setup or any time via "Injured or in pain?". Every exercise the planner uses is tagged with the joints it loads (`src/lib/injuries.ts`), and the rest of the library is screened with cautious keyword rules. Plans, swaps and "Change all exercises" only use safe exercises; updating injuries adjusts the current plan (keeping the user's own edits) and lists what changed; the library and exercise pages warn about exercises that may aggravate an injury.
 - **Make the plan your own.** Tap any exercise to swap it (recommended alternatives for the same movement, or anything in the library), change its sets/reps/rest, reorder or remove it, or add exercises to a day. "Change all exercises" swaps a whole day for similar exercises in one tap (also on the Today screen). Swap exercises mid-workout when equipment is busy. "Change plan" offers fresh exercises (same main lifts) or a different split for the same number of days, e.g. Push/Pull/Legs instead of Full Body.
 - **Nutrition plan.** Calories (Mifflin-St Jeor + activity + goal), protein/carbs/fat, fiber and water targets, plus an example day of eating with portions worked out to hit the targets. Supports no restrictions, vegetarian and vegan diets.
 - **Workout logging.** Start the next workout in one tap, log weight and reps per set, see what you lifted last time, use the rest timer, add sets or exercises.

@@ -33,7 +33,7 @@ export function AlternativesList({ recommended, sameMuscle, muscle, actionFor, l
       {recommended.length > 0 && (
         <section className="card">
           <h2 className="font-bold">Recommended swaps</h2>
-          <p className="text-xs muted">Same movement, suited to your equipment{screened ? " and problem areas" : ""}.</p>
+          <p className="text-xs muted">Same movement, suited to your equipment{screened ? " and injuries" : ""}.</p>
           <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
             {recommended.map((ex) => <Row key={ex.id} ex={ex} action={actionFor(ex.id)} />)}
           </ul>
@@ -42,7 +42,7 @@ export function AlternativesList({ recommended, sameMuscle, muscle, actionFor, l
       {sameMuscle.length > 0 && (
         <section className="card">
           <h2 className="font-bold">More {muscle ? `${muscle} ` : ""}exercises</h2>
-          {screened && <p className="text-xs muted">Not screened for your problem areas — stop if anything hurts.</p>}
+          {screened && <p className="text-xs muted">Exercises that load your injured areas are left out.</p>}
           <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
             {sameMuscle.map((ex) => <Row key={ex.id} ex={ex} action={actionFor(ex.id)} />)}
           </ul>
