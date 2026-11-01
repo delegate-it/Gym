@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { parseLimitations } from "@/lib/injuries";
-import { analyzeInjury, MAX_DESCRIPTION, parseInjuryInfo } from "@/lib/injury-analysis";
+import { analyzeInjury, ANALYSIS_VERSION, MAX_DESCRIPTION, parseInjuryInfo } from "@/lib/injury-analysis";
 import { adaptPlanToInjuries, type EquipmentAccess, type Experience, type Goal } from "@/lib/planner";
 import { createPlan, getActivePlanRecord, plannerInput, savePlan } from "@/lib/plans";
 
@@ -29,7 +29,7 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   const weightKg = num(form.get("weightKg"), 30, 300);
   if (!age || !heightCm || !weightKg) return { error: "Please check your age, height and weight." };
 
-  const injuries = await resolveInjuries(form, user.profile);
+  const injuries = await resolveInjuries(form, user.profile, await planExerciseIds(user.id));
   const data = {
     name: String(form.get("name") || "").trim().slice(0, 60) || null,
     sex: pickOne(form.get("sex"), ["male", "female"] as const, "male"),
@@ -73,22 +73,28 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
  * and exercises the description rules out. A description can only add restrictions. An unchanged
  * description reuses the stored analysis instead of analysing it again.
  */
-async function resolveInjuries(form: FormData, previous?: { injuryNotes: string; injuryAvoid: string; injuryInfo: string } | null) {
+async function resolveInjuries(form: FormData, previous: { injuryNotes: string; injuryAvoid: string; injuryInfo: string } | null | undefined, planIds: string[]) {
   const ticked = parseLimitations(form.getAll("limitations").map(String));
   const notes = String(form.get("injuryNotes") ?? "").trim().slice(0, MAX_DESCRIPTION);
   if (!notes) return { limitations: ticked.join(","), injuryNotes: "", injuryAvoid: "", injuryInfo: "" };
 
   const stored = previous?.injuryNotes === notes ? parseInjuryInfo(previous.injuryInfo) : null;
-  if (stored) {
+  if (stored && stored.version >= ANALYSIS_VERSION) {
     return { limitations: [...new Set([...ticked, ...stored.areas])].join(","), injuryNotes: notes, injuryAvoid: previous!.injuryAvoid, injuryInfo: previous!.injuryInfo };
   }
-  const { avoidIds, ...info } = await analyzeInjury(notes);
+  const { avoidIds, ...info } = await analyzeInjury(notes, planIds);
   return {
     limitations: [...new Set([...ticked, ...info.areas])].join(","),
     injuryNotes: notes,
     injuryAvoid: avoidIds.join(","),
     injuryInfo: JSON.stringify(info),
   };
+}
+
+/** Every exercise in the user's active plan, so an injury description is checked against all of them. */
+async function planExerciseIds(userId: string) {
+  const current = await getActivePlanRecord(userId);
+  return current ? [...new Set(current.plan.days.flatMap((d) => d.exercises.map((e) => e.exerciseId)))] : [];
 }
 
 /** Swaps out exercises in the active plan that load an injured area. */
@@ -102,7 +108,7 @@ async function applyInjuries(userId: string, profile: Parameters<typeof plannerI
 /** Saves the user's injured areas and adapts their plan to them. */
 export async function updateInjuries(form: FormData) {
   const user = await requireUser();
-  const injuries = await resolveInjuries(form, user.profile);
+  const injuries = await resolveInjuries(form, user.profile, await planExerciseIds(user.id));
   await db.profile.update({ where: { userId: user.id }, data: injuries });
   await applyInjuries(user.id, { ...user.profile, ...injuries });
   revalidatePath("/plan");
