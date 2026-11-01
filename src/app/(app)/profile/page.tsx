@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
-import { deleteAccount, regeneratePlan } from "@/app/actions/profile";
+import Link from "next/link";
+import { deleteAccount } from "@/app/actions/profile";
 import { ProfileForm } from "@/components/ProfileForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -26,7 +27,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="space-y-2">
-        <form action={regeneratePlan}><button className="btn-ghost w-full">Rebuild my plan with the same answers</button></form>
+        <Link href="/plan/change" className="btn-ghost w-full">Change my plan (fresh exercises or a different split)</Link>
         <form action={logout}><button className="btn-ghost w-full">Sign out</button></form>
         <form action={deleteAccount}>
           <ConfirmButton message="Delete your account and all your data? This can't be undone." className="w-full py-3 text-sm text-red-600">

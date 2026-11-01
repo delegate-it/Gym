@@ -1,15 +1,33 @@
 import Link from "next/link";
 import { CATEGORIES, EQUIPMENT, MUSCLES, searchExercises } from "@/lib/exercises";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
-import { AddToWorkoutButton } from "@/components/AddToWorkoutButton";
+import { ActionButton } from "@/components/ActionButton";
+import { addExercise } from "@/app/actions/workout";
+import { addPlanExercise, swapPlanExercise } from "@/app/actions/plan";
 
 const PAGE = 30;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-type Search = { q?: string; muscle?: string; equipment?: string; category?: string; page?: string; add?: string };
+type Search = { q?: string; muscle?: string; equipment?: string; category?: string; page?: string; add?: string; planDay?: string; replace?: string };
+
+/** The library doubles as a picker: for a workout (`add`), a plan day (`planDay`) or a plan swap (`planDay` + `replace`). */
+function pickerMode(sp: Search) {
+  if (sp.add) {
+    const id = sp.add;
+    return { title: "Add an exercise", back: `/workout/${id}`, backLabel: "Back to workout", label: "Add", action: (ex: string) => addExercise.bind(null, id, ex) };
+  }
+  const d = Number(sp.planDay);
+  if (sp.planDay == null || !Number.isInteger(d) || d < 0) return null;
+  const r = Number(sp.replace);
+  if (sp.replace != null && Number.isInteger(r) && r >= 0) {
+    return { title: "Swap exercise", back: `/plan/edit/${d}/${r}`, backLabel: "Back", label: "Use", action: (ex: string) => swapPlanExercise.bind(null, d, r, ex) };
+  }
+  return { title: `Add to day ${d + 1}`, back: `/plan#day-${d}`, backLabel: "Back to plan", label: "Add", action: (ex: string) => addPlanExercise.bind(null, d, ex) };
+}
 
 export default async function ExercisesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
+  const picker = pickerMode(sp);
   const results = searchExercises(sp);
   const page = Math.max(1, Number(sp.page) || 1);
   const shown = results.slice(0, page * PAGE);
@@ -17,10 +35,10 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-4">
-      {sp.add ? (
+      {picker ? (
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Add an exercise</h1>
-          <Link href={`/workout/${sp.add}`} className="text-sm muted underline">Back to workout</Link>
+          <h1 className="text-2xl font-bold">{picker.title}</h1>
+          <Link href={picker.back} className="text-sm muted underline">{picker.backLabel}</Link>
         </div>
       ) : (
         <div>
@@ -30,7 +48,7 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
       )}
 
       <form className="space-y-2">
-        {sp.add && <input type="hidden" name="add" value={sp.add} />}
+        {(["add", "planDay", "replace"] as const).map((k) => sp[k] && <input key={k} type="hidden" name={k} value={sp[k]} />)}
         <input name="q" defaultValue={sp.q} placeholder="Search e.g. bench press, squat, curl…" className="input" type="search" />
         <div className="grid grid-cols-3 gap-2">
           <select name="muscle" defaultValue={sp.muscle ?? ""} className="input px-2 py-2 text-sm">
@@ -60,7 +78,7 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
                 <p className="mt-1 text-xs"><span className="chip">{cap(e.level)}</span></p>
               </div>
             </Link>
-            {sp.add && <AddToWorkoutButton workoutId={sp.add} exerciseId={e.id} />}
+            {picker && <ActionButton action={picker.action(e.id)}>{picker.label}</ActionButton>}
           </li>
         ))}
       </ul>
