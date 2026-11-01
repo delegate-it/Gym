@@ -20,6 +20,11 @@ export type PlannerInput = {
   variant?: number;
   /** Specific exercises to leave out because of a described injury. */
   avoidIds?: string[];
+  /**
+   * True when Claude reviewed every hand-picked exercise against the user's described injury.
+   * Its per-exercise verdicts (`avoidIds`) then replace the general body-area rules for them.
+   */
+  aiReviewed?: boolean;
 };
 
 export type PlanExercise = {
@@ -250,12 +255,22 @@ const PATTERNS: Record<Pattern, Option[]> = {
 
 const EQ_RANK: Record<EquipmentAccess, number> = { bodyweight: 0, dumbbells: 1, gym: 2 };
 
-/** True when an option suits the user's equipment and doesn't load any injured area. */
-function suits(o: Option, input: Pick<PlannerInput, "equipment" | "limitations" | "avoidIds">) {
-  return EQ_RANK[o.eq] <= EQ_RANK[input.equipment] &&
-    !input.avoidIds?.includes(o.id) &&
-    !o.avoid?.some((l) => input.limitations.includes(l)) &&
-    injuryConflicts(getExercise(o.id), input.limitations).length === 0;
+type InjuryInput = Pick<PlannerInput, "limitations" | "avoidIds" | "aiReviewed">;
+
+/**
+ * Whether the user's injuries rule an exercise out. Exercises Claude reviewed individually follow
+ * its verdict; everything else (and everything without a review) follows the body-area rules.
+ */
+export function injuryBlocked(exerciseId: string, input: InjuryInput) {
+  if (input.avoidIds?.includes(exerciseId)) return true;
+  if (input.aiReviewed && CURATED_IDS.has(exerciseId)) return false;
+  if (CURATED.find((o) => o.id === exerciseId)?.avoid?.some((l) => input.limitations.includes(l))) return true;
+  return injuryConflicts(getExercise(exerciseId), input.limitations).length > 0;
+}
+
+/** True when an option suits the user's equipment and their injuries. */
+function suits(o: Option, input: Pick<PlannerInput, "equipment" | "limitations" | "avoidIds" | "aiReviewed">) {
+  return EQ_RANK[o.eq] <= EQ_RANK[input.equipment] && !injuryBlocked(o.id, input);
 }
 
 function pick(pattern: Pattern, role: Role, input: PlannerInput, usedToday: Set<string>, usedInPlan: Set<string>, variant: number): string | null {
@@ -451,8 +466,40 @@ function minutesFor(s: Scheme) {
   return (s.sets * (35 + s.restSec)) / 60 + 1;
 }
 
-/** Safe extra work used when injuries leave a day with too few exercises. */
-const INJURY_FILLERS: Pattern[] = ["h_pull", "rear_delt", "glutes", "leg_curl", "core", "core_alt", "calves"];
+/** Patterns used to refill a day that injuries have thinned out, by body region. */
+const FILLERS: Record<"upper" | "lower" | "core", Pattern[]> = {
+  upper: ["h_push", "incline_push", "chest_fly", "v_push", "lateral", "rear_delt", "h_pull", "v_pull", "triceps", "triceps_alt", "biceps_alt", "biceps"],
+  lower: ["squat_alt", "glutes", "leg_curl", "hinge_alt", "leg_ext", "lunge", "calves"],
+  core: ["core", "core_alt"],
+};
+const LOWER_MUSCLES = ["quadriceps", "hamstrings", "glutes", "calves", "adductors", "abductors"];
+const regionOf = (id: string): keyof typeof FILLERS => {
+  const m = getExercise(id)?.primary[0] ?? "";
+  return LOWER_MUSCLES.includes(m) ? "lower" : m === "abdominals" ? "core" : "upper";
+};
+
+/**
+ * Refills a day to `target` exercises with safe ones, so injuries don't leave a near-empty session.
+ * Prefers the body regions the day was meant to train (`regions`), then the rest.
+ */
+function topUp(exercises: PlanExercise[], target: number, regions: (keyof typeof FILLERS)[], input: PlannerInput | (ReplaceInput & { variant?: number }), usedInPlan: Set<string>) {
+  const added: string[] = [];
+  const used = new Set(exercises.map((e) => e.exerciseId));
+  const order = [...new Set([...regions, "upper", "core", "lower"] as const)].flatMap((r) => FILLERS[r]);
+  for (const pattern of order) {
+    if (exercises.length >= target) break;
+    // Add movements the day doesn't have yet (no second bench press).
+    if (exercises.some((e) => PATTERNS[pattern].some((o) => o.id === e.exerciseId))) continue;
+    const id = pick(pattern, "accessory", input as PlannerInput, used, usedInPlan, input.variant ?? 0);
+    if (!id || used.has(id)) continue;
+    const s = scheme(input.goal, "accessory", input.experience);
+    used.add(id);
+    usedInPlan.add(id);
+    added.push(id);
+    exercises.push({ exerciseId: id, sets: s.sets, reps: repsFor(id, s.reps, input.goal), restSec: s.restSec });
+  }
+  return added;
+}
 
 const CARDIO: Record<Goal, string | undefined> = {
   fat_loss: "Finish with 10–20 min of intervals: 30 s hard / 60 s easy (bike, rower, brisk incline walk or skipping).",
@@ -498,18 +545,14 @@ export function generatePlan(input: PlannerInput): TrainingPlan {
     }
 
     // Injuries can rule out most of a day (e.g. every push-up for a wrist injury at home).
-    // Keep the session worthwhile with safe work for other areas.
+    // Keep the session worthwhile with safe work, for the same body regions where possible.
     let note: string | undefined;
-    if (input.limitations.length && exercises.length < 3) {
-      for (const pattern of INJURY_FILLERS) {
-        if (exercises.length >= 3) break;
-        const id = pick(pattern, "accessory", input, used, usedInPlan, variant);
-        if (!id || used.has(id)) continue;
-        const s = scheme(input.goal, "accessory", input.experience);
-        used.add(id);
-        exercises.push({ exerciseId: id, sets: s.sets, reps: repsFor(id, s.reps, input.goal), restSec: s.restSec });
+    const injured = input.limitations.length > 0 || (input.avoidIds?.length ?? 0) > 0;
+    if (injured && exercises.length < 4) {
+      const regions = [...new Set(tpl.slots.map(([p]) => regionOf(PATTERNS[p][0].id)))];
+      if (topUp(exercises, 4, regions, input, usedInPlan).length) {
+        note = "Adjusted for your injuries: exercises that could aggravate it were left out, and safe alternatives were added.";
       }
-      note = "Adjusted for your injuries: exercises that load the injured area were left out, and safe work for other areas was added.";
     }
 
     return { name: tpl.name, focus: tpl.focus, weekday: WEEKDAYS[days][i], exercises, cardio, note };
@@ -569,7 +612,7 @@ const LEVEL_RANK: Record<string, number> = { beginner: 0, intermediate: 1, exper
  * Exercises that can replace `exerciseId`: first the curated options for the same movement
  * (filtered for the user's equipment and injuries), then other exercises for the same muscle.
  */
-export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience" | "avoidIds">) {
+export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience" | "avoidIds" | "aiReviewed">) {
   const current = getExercise(exerciseId);
   const fits = (o: Option) => suits(o, input);
 
@@ -592,8 +635,7 @@ export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "e
       e.primary.includes(muscle) &&
       (!allowedEq || allowedEq.includes(e.equipment)) &&
       (LEVEL_RANK[e.level] ?? 0) <= maxLevel &&
-      injuryConflicts(e, input.limitations).length === 0 &&
-      !input.avoidIds?.includes(e.id) &&
+      !injuryBlocked(e.id, input) &&
       !recommended.includes(e))
     .sort((a, b) =>
       Number(b.mechanic === current?.mechanic) - Number(a.mechanic === current?.mechanic) ||
@@ -619,6 +661,7 @@ export function addedPrescription(exerciseId: string, goal: Goal, experience: Ex
 
 /** Every hand-picked exercise once, with the equipment level it needs. */
 const CURATED: Option[] = [...new Map(Object.values(PATTERNS).flat().map((o) => [o.id, o] as const)).values()];
+const CURATED_IDS = new Set(CURATED.map((o) => o.id));
 
 /** IDs of every hand-picked exercise the planner can use. */
 export const curatedExerciseIds = () => CURATED.map((o) => o.id);
@@ -628,7 +671,7 @@ function libraryTier(equipment?: string): EquipmentAccess {
   return equipment === "dumbbell" ? "dumbbells" : "gym";
 }
 
-type ReplaceInput = Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal" | "avoidIds">;
+type ReplaceInput = Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal" | "avoidIds" | "aiReviewed">;
 
 /**
  * A similar hand-picked exercise to replace `item` with: same main muscle, trained the same way
@@ -681,7 +724,8 @@ export function shuffleDay(day: PlanDay, input: ReplaceInput, random = Math.rand
   return { ...day, exercises };
 }
 
-export type InjuryChange = { day: string; from: string; to: string | null };
+/** One change made for an injury: a swap (from → to), a removal (to null) or an addition (from null). */
+export type InjuryChange = { day: string; from: string | null; to: string | null };
 
 /**
  * Makes an existing plan safe for the user's injuries without rebuilding it, so their own edits
@@ -690,11 +734,12 @@ export type InjuryChange = { day: string; from: string; to: string | null };
  */
 export function adaptPlanToInjuries(plan: TrainingPlan, input: ReplaceInput): { plan: TrainingPlan; changes: InjuryChange[] } {
   const changes: InjuryChange[] = [];
+  const usedInPlan = new Set(plan.days.flatMap((d) => d.exercises.map((e) => e.exerciseId)));
   const days = plan.days.map((day) => {
     const used = new Set<string>();
     const exercises: PlanExercise[] = [];
     for (const item of day.exercises) {
-      if (injuryConflicts(getExercise(item.exerciseId), input.limitations).length === 0 && !input.avoidIds?.includes(item.exerciseId)) {
+      if (!injuryBlocked(item.exerciseId, input)) {
         exercises.push(item);
         continue;
       }
@@ -705,6 +750,12 @@ export function adaptPlanToInjuries(plan: TrainingPlan, input: ReplaceInput): { 
         exercises.push(swapPrescription(item, newId, input.goal));
       }
     }
+    // Refill to the day's original size (at least 4) so removals don't leave a near-empty session,
+    // starting with the body regions that lost exercises.
+    const target = Math.max(4, Math.min(day.exercises.length, 8));
+    const lost = day.exercises.filter((e) => injuryBlocked(e.exerciseId, input));
+    const regions = [...new Set([...lost, ...day.exercises].map((e) => regionOf(e.exerciseId)))];
+    for (const id of topUp(exercises, target, regions, input, usedInPlan)) changes.push({ day: day.name, from: null, to: id });
     return { ...day, exercises };
   });
   return { plan: { ...plan, days, progression: progressionRules(input as PlannerInput) }, changes };

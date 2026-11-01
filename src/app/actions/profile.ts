@@ -79,10 +79,12 @@ async function resolveInjuries(form: FormData, previous: { injuryNotes: string; 
   if (!notes) return { limitations: ticked.join(","), injuryNotes: "", injuryAvoid: "", injuryInfo: "" };
 
   const stored = previous?.injuryNotes === notes ? parseInjuryInfo(previous.injuryInfo) : null;
-  if (stored && stored.version >= ANALYSIS_VERSION) {
+  // Areas found in the description get ticked automatically, so they don't count as a change.
+  const sameTicked = stored && [...new Set([...stored.ticked, ...stored.areas])].sort().join() === [...new Set(ticked)].sort().join();
+  if (stored && sameTicked && stored.version >= ANALYSIS_VERSION) {
     return { limitations: [...new Set([...ticked, ...stored.areas])].join(","), injuryNotes: notes, injuryAvoid: previous!.injuryAvoid, injuryInfo: previous!.injuryInfo };
   }
-  const { avoidIds, ...info } = await analyzeInjury(notes, planIds);
+  const { avoidIds, ...info } = await analyzeInjury(notes, planIds, ticked);
   return {
     limitations: [...new Set([...ticked, ...info.areas])].join(","),
     injuryNotes: notes,

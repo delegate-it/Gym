@@ -1,8 +1,18 @@
 import "server-only";
 import { db } from "./db";
-import { generatePlan, parsePlan, type EquipmentAccess, type Experience, type Goal, type Limitation, type PlannerInput, type SplitId, type TrainingPlan } from "./planner";
+import { ANALYSIS_VERSION, parseInjuryInfo } from "./injury-analysis";
+import type { Exercise } from "./exercises";
+import { injuryConflicts, injuryLabel } from "./injuries";
+import { generatePlan, injuryBlocked, parsePlan, type EquipmentAccess, type Experience, type Goal, type Limitation, type PlannerInput, type SplitId, type TrainingPlan } from "./planner";
 
-type ProfileFields = { goal: string; experience: string; daysPerWeek: number; sessionMin: number; equipment: string; limitations: string; injuryAvoid?: string };
+type ProfileFields = { goal: string; experience: string; daysPerWeek: number; sessionMin: number; equipment: string; limitations: string; injuryAvoid?: string; injuryInfo?: string; injuryNotes?: string };
+
+/** True when Claude has reviewed every exercise for the user's described injury (current analysis version). */
+function aiReviewed(p: ProfileFields) {
+  if (!p.injuryNotes || !p.injuryInfo) return false;
+  const info = parseInjuryInfo(p.injuryInfo);
+  return info?.source === "ai" && info.version >= ANALYSIS_VERSION;
+}
 
 export function plannerInput(p: ProfileFields): PlannerInput {
   return {
@@ -13,6 +23,7 @@ export function plannerInput(p: ProfileFields): PlannerInput {
     equipment: p.equipment as EquipmentAccess,
     limitations: p.limitations.split(",").filter(Boolean) as Limitation[],
     avoidIds: (p.injuryAvoid ?? "").split(",").filter(Boolean),
+    aiReviewed: aiReviewed(p),
   };
 }
 
@@ -34,4 +45,16 @@ export async function getActivePlanRecord(userId: string) {
 /** Saves changes to a plan; hand edits mark it as customised, automatic adjustments don't. */
 export async function savePlan(id: string, plan: TrainingPlan, { byUser = true } = {}) {
   await db.plan.update({ where: { id }, data: { data: JSON.stringify({ ...plan, edited: plan.edited || byUser }) } });
+}
+
+/** Why an exercise is risky for the user's injuries, or null when it's fine. */
+export function injuryWarning(ex: Pick<Exercise, "id" | "name" | "primary">, profile: ProfileFields) {
+  const input = plannerInput(profile);
+  if (!injuryBlocked(ex.id, input)) return null;
+  const reason = profile.injuryInfo ? parseInjuryInfo(profile.injuryInfo)?.avoidReasons[ex.id] : undefined;
+  if (reason) return `Based on your injury: ${reason}`;
+  const areas = injuryConflicts(ex, input.limitations);
+  return areas.length
+    ? `This exercise can load your ${areas.map((l) => injuryLabel(l).toLowerCase()).join(" and ")}. Consider a safer alternative, or keep it light and stop if it hurts.`
+    : "Based on the injury you described, this exercise is best avoided for now.";
 }

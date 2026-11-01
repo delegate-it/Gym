@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getExercise, imageUrl, videoUrl } from "@/lib/exercises";
 import { toDisplay, type Units } from "@/lib/units";
-import { injuryConflicts, injuryLabel, parseLimitations } from "@/lib/injuries";
+import { injuryWarning } from "@/lib/plans";
 import { ExerciseAnimation } from "@/components/ExerciseAnimation";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -15,8 +15,7 @@ export default async function ExerciseDetail({ params }: { params: Promise<{ id:
   if (!ex) notFound();
   const user = await requireUser();
   const units = user.profile.units as Units;
-  const conflicts = injuryConflicts(ex, parseLimitations(user.profile.limitations));
-  const describedAvoid = user.profile.injuryAvoid.split(",").includes(ex.id);
+  const warning = injuryWarning(ex, user.profile);
 
   const sets = await db.workoutSet.findMany({
     where: { exerciseId: ex.id, done: true, workout: { userId: user.id, completedAt: { not: null } } },
@@ -44,17 +43,8 @@ export default async function ExerciseDetail({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {conflicts.length > 0 && (
-        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          ⚠️ This exercise can load your <b>{conflicts.map((l) => injuryLabel(l).toLowerCase()).join(" and ")}</b>. Consider a safer alternative,
-          or keep it light and stop if it hurts.
-        </p>
-      )}
-
-      {describedAvoid && conflicts.length === 0 && (
-        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          ⚠️ Based on the injury you described, this exercise is best avoided for now.
-        </p>
+      {warning && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">⚠️ {warning}</p>
       )}
 
       <ExerciseAnimation images={ex.images.map(imageUrl)} alt={ex.name} />

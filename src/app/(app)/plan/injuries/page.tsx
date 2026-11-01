@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { INJURY_AREAS, parseLimitations } from "@/lib/injuries";
+import { injuryLabel, parseLimitations } from "@/lib/injuries";
 import { MAX_DESCRIPTION, parseInjuryInfo } from "@/lib/injury-analysis";
 import { updateInjuries } from "@/app/actions/profile";
 import { InjuryInfo } from "@/components/InjuryInfo";
@@ -19,8 +19,8 @@ export default async function InjuriesPage() {
         <Link href="/plan" className="text-sm muted">‹ Plan</Link>
         <h1 className="text-2xl font-bold">Injured or in pain?</h1>
         <p className="text-sm muted">
-          Describe what&apos;s going on and tick the areas that hurt. We&apos;ll swap out exercises in your plan that could make it worse,
-          and keep everything else as it is.
+          Describe what&apos;s going on: where it hurts, which movements are painful and how bad it is. We&apos;ll swap out exercises in your plan
+          that could make it worse, and keep everything else as it is.
         </p>
       </div>
 
@@ -39,26 +39,20 @@ export default async function InjuriesPage() {
           <p className="mt-1 text-xs muted">
             {aiEnabled
               ? "Your description is analysed by Claude, an AI model from Anthropic, to adjust your plan. Don't include your name or other personal details."
-              : "We recognise common injury terms (e.g. tennis elbow, ACL, sciatica, rotator cuff). Also tick the areas below."}
+              : "We recognise common injury terms (e.g. tennis elbow, ACL, sciatica, rotator cuff) and phrases like “I can't do pulling”."}
           </p>
         </div>
 
-        <div>
-          <p className="label">Areas that hurt</p>
-          <div className="grid grid-cols-2 gap-2">
-            {INJURY_AREAS.map(({ id, label }) => (
-              <label key={id} className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-zinc-200 bg-white p-3 font-medium has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 dark:border-zinc-800 dark:bg-zinc-900 dark:has-[:checked]:bg-brand-500/10">
-                <input type="checkbox" name="limitations" value={id} defaultChecked={current.includes(id)} className="h-5 w-5 accent-brand-500" />
-                {label}
-              </label>
-            ))}
-          </div>
-          <p className="mt-1 text-xs muted">Areas found in your description are added automatically.</p>
-        </div>
+        {current.length > 0 && !p.injuryNotes && (
+          <p className="rounded-xl bg-zinc-100 p-3 text-sm dark:bg-zinc-800">
+            Currently avoiding exercises that load your <b>{current.map((l) => injuryLabel(l).toLowerCase()).join(", ")}</b> (from your setup).
+            Describe your injury above to update this, or save with an empty description to clear it.
+          </p>
+        )}
 
         <SubmitButton pendingText={p.injuryNotes || aiEnabled ? "Analysing and updating your plan…" : "Updating your plan…"}>Update my plan</SubmitButton>
         <p className="text-xs muted">
-          Recovered? Clear the description, untick the areas and save. To bring back the full exercise selection afterwards, use <b>Change plan → Fresh exercises</b>.
+          Recovered? Clear the description and save. To bring back the full exercise selection afterwards, use <b>Change plan → Fresh exercises</b>.
         </p>
       </form>
 
