@@ -18,10 +18,11 @@ export default async function ProfilePage() {
       <div className="card">
         <ProfileForm
           isEdit
+          aiEnabled={Boolean(process.env.ANTHROPIC_API_KEY)}
           initial={{
             name: p.name ?? "", sex: p.sex, age: String(p.age), heightCm: String(p.heightCm), weightKg: String(p.weightKg),
             units: p.units as "kg" | "lb", goal: p.goal, experience: p.experience, daysPerWeek: p.daysPerWeek, sessionMin: p.sessionMin,
-            equipment: p.equipment, limitations: p.limitations.split(",").filter(Boolean), activity: p.activity, diet: p.diet, mealsPerDay: p.mealsPerDay,
+            equipment: p.equipment, limitations: p.limitations.split(",").filter(Boolean), injuryNotes: p.injuryNotes, activity: p.activity, diet: p.diet, mealsPerDay: p.mealsPerDay,
           }}
         />
       </div>

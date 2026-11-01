@@ -53,6 +53,9 @@ model Profile {
   sessionMin    Int
   equipment     String
   limitations   String   @default("")
+  injuryNotes   String   @default("")
+  injuryAvoid   String   @default("")
+  injuryInfo    String   @default("")
   activity      String
   diet          String
   mealsPerDay   Int
