@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { generatePlan, type EquipmentAccess, type Experience, type Goal, type Limitation } from "@/lib/planner";
+import { type EquipmentAccess, type Experience, type Goal, type Limitation } from "@/lib/planner";
+import { createPlan, getActivePlanRecord } from "@/lib/plans";
 
 const pickOne = <T extends string>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback;
@@ -51,31 +52,13 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   // Only rebuild the plan when something that affects training changed.
   const planKeys = ["goal", "experience", "daysPerWeek", "sessionMin", "equipment", "limitations"] as const;
   const planChanged = isNew || planKeys.some((k) => String(user.profile?.[k]) !== String(data[k]));
-  if (planChanged || form.get("regenerate")) await createPlan(user.id, data);
+  if (planChanged || form.get("regenerate")) {
+    // Keep the split the user chose, if it still fits their number of days.
+    const current = await getActivePlanRecord(user.id);
+    await createPlan(user.id, data, { splitId: current?.plan.splitId });
+  }
 
   redirect(isNew ? "/plan?welcome=1" : "/today");
-}
-
-async function createPlan(userId: string, p: { goal: Goal; experience: Experience; daysPerWeek: number; sessionMin: number; equipment: EquipmentAccess; limitations: string }) {
-  const plan = generatePlan({
-    goal: p.goal,
-    experience: p.experience,
-    daysPerWeek: p.daysPerWeek,
-    sessionMin: p.sessionMin,
-    equipment: p.equipment,
-    limitations: p.limitations.split(",").filter(Boolean) as Limitation[],
-  });
-  await db.$transaction([
-    db.plan.updateMany({ where: { userId, active: true }, data: { active: false } }),
-    db.plan.create({ data: { userId, name: plan.name, data: JSON.stringify(plan) } }),
-  ]);
-}
-
-export async function regeneratePlan() {
-  const user = await getCurrentUser();
-  if (!user?.profile) redirect("/");
-  await createPlan(user.id, user.profile as Parameters<typeof createPlan>[1]);
-  redirect("/plan");
 }
 
 export async function deleteAccount() {

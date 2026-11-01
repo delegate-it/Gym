@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { getActivePlan, getLastSets } from "@/lib/data";
 import { getExercise } from "@/lib/exercises";
 import { fromDisplay, type Units } from "@/lib/units";
+import { swapPrescription, type Goal } from "@/lib/planner";
+import { getActivePlanRecord, savePlan } from "@/lib/plans";
 
 export async function startWorkout(dayIndex: number) {
   const user = await requireUser();
@@ -110,4 +112,34 @@ export async function deleteWorkout(workoutId: string) {
   const user = await requireUser();
   await db.workout.deleteMany({ where: { id: workoutId, userId: user.id } });
   redirect("/progress");
+}
+
+/** Replaces an exercise in an open workout (sets not yet done), and optionally in the plan too. */
+export async function swapWorkoutExercise(workoutId: string, oldExerciseId: string, newExerciseId: string, alsoInPlan: boolean) {
+  const user = await requireUser();
+  const workout = await db.workout.findFirst({ where: { id: workoutId, userId: user.id, completedAt: null } });
+  if (!workout || !getExercise(newExerciseId)) redirect("/today");
+
+  const last = await getLastSets(user.id, [newExerciseId]);
+  const prev = last.get(newExerciseId);
+  const open = await db.workoutSet.findMany({ where: { workoutId, exerciseId: oldExerciseId, done: false }, orderBy: { setNumber: "asc" } });
+  await db.$transaction(
+    open.map((s, i) =>
+      db.workoutSet.update({
+        where: { id: s.id },
+        data: { exerciseId: newExerciseId, reps: null, weight: (prev?.[i] ?? prev?.[prev.length - 1])?.weight ?? null },
+      }),
+    ),
+  );
+
+  if (alsoInPlan && workout.planId && workout.dayIndex != null) {
+    const record = await getActivePlanRecord(user.id);
+    const day = record?.id === workout.planId ? record.plan.days[workout.dayIndex] : undefined;
+    const idx = day?.exercises.findIndex((e) => e.exerciseId === oldExerciseId) ?? -1;
+    if (record && day && idx >= 0) {
+      day.exercises[idx] = swapPrescription(day.exercises[idx], newExerciseId, user.profile.goal as Goal);
+      await savePlan(record.id, record.plan);
+    }
+  }
+  redirect(`/workout/${workoutId}`);
 }

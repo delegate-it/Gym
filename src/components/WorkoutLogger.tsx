@@ -95,6 +95,11 @@ export function WorkoutLogger({ workoutId, title, startedAt, units, exercises: i
               </p>
               {ex.last && <p className="text-xs muted">Last time: {ex.last} ({units})</p>}
             </div>
+            {ex.sets.some((x) => !x.done) && (
+              <Link href={`/workout/${workoutId}/swap/${encodeURIComponent(ex.exerciseId)}`} className="h-fit shrink-0 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                ⇄ Swap
+              </Link>
+            )}
           </div>
           {ex.note && <p className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">{ex.note}</p>}
 

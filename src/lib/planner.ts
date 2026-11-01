@@ -1,4 +1,4 @@
-import { getExercise } from "./exercises";
+import { exercises as allExercises, getExercise, type Exercise } from "./exercises";
 
 export type Goal = "muscle" | "strength" | "fat_loss" | "fitness";
 export type Experience = "beginner" | "intermediate" | "advanced";
@@ -12,6 +12,10 @@ export type PlannerInput = {
   sessionMin: number;
   equipment: EquipmentAccess;
   limitations: Limitation[];
+  /** Preferred split; ignored if it doesn't fit the number of days. */
+  splitId?: SplitId;
+  /** Changes the accessory exercise selection ("fresh exercises"). */
+  variant?: number;
 };
 
 export type PlanExercise = {
@@ -37,6 +41,10 @@ export type TrainingPlan = {
   days: PlanDay[];
   progression: string[];
   warmup: string;
+  splitId?: SplitId;
+  variant?: number;
+  /** Set once the user has edited the plan by hand. */
+  edited?: boolean;
 };
 
 /* ------------------------------------------------------------------ */
@@ -54,6 +62,7 @@ const PATTERNS: Record<Pattern, Option[]> = {
   squat: [
     { id: "Barbell_Squat", eq: "gym", avoid: ["knees", "lower_back"] },
     { id: "Leg_Press", eq: "gym", avoid: ["knees"] },
+    { id: "Hack_Squat", eq: "gym", avoid: ["knees"] },
     { id: "Goblet_Squat", eq: "dumbbells", avoid: ["knees"] },
     { id: "Bodyweight_Squat", eq: "bodyweight", avoid: ["knees"] },
     { id: "Barbell_Glute_Bridge", eq: "gym" },
@@ -69,7 +78,9 @@ const PATTERNS: Record<Pattern, Option[]> = {
   lunge: [
     { id: "Split_Squat_with_Dumbbells", eq: "dumbbells", avoid: ["knees"] },
     { id: "Dumbbell_Lunges", eq: "dumbbells", avoid: ["knees"] },
+    { id: "Dumbbell_Rear_Lunge", eq: "dumbbells", avoid: ["knees"] },
     { id: "Split_Squats", eq: "bodyweight", avoid: ["knees"] },
+    { id: "Bodyweight_Walking_Lunge", eq: "bodyweight", avoid: ["knees"] },
     { id: "Single_Leg_Glute_Bridge", eq: "bodyweight" },
   ],
   hinge: [
@@ -90,6 +101,7 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   leg_curl: [
     { id: "Lying_Leg_Curls", eq: "gym" },
+    { id: "Seated_Leg_Curl", eq: "gym" },
     { id: "Stiff-Legged_Dumbbell_Deadlift", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Single_Leg_Glute_Bridge", eq: "bodyweight" },
   ],
@@ -100,6 +112,7 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   calves: [
     { id: "Standing_Calf_Raises", eq: "gym" },
+    { id: "Seated_Calf_Raise", eq: "gym" },
     { id: "Calf_Raise_On_A_Dumbbell", eq: "dumbbells" },
     { id: "Standing_Dumbbell_Calf_Raise", eq: "dumbbells" },
   ],
@@ -118,7 +131,9 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   v_push: [
     { id: "Standing_Military_Press", eq: "gym", avoid: ["shoulders", "lower_back"] },
+    { id: "Machine_Shoulder_Military_Press", eq: "gym", avoid: ["shoulders"] },
     { id: "Seated_Dumbbell_Press", eq: "dumbbells", avoid: ["shoulders"] },
+    { id: "Arnold_Dumbbell_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Decline_Push-Up", eq: "bodyweight", avoid: ["shoulders"] },
     { id: "Side_Lateral_Raise", eq: "dumbbells" },
     { id: "Incline_Push-Up", eq: "bodyweight" },
@@ -126,41 +141,52 @@ const PATTERNS: Record<Pattern, Option[]> = {
   h_pull: [
     { id: "Bent_Over_Barbell_Row", eq: "gym", avoid: ["lower_back"] },
     { id: "Seated_Cable_Rows", eq: "gym" },
+    { id: "T-Bar_Row_with_Handle", eq: "gym", avoid: ["lower_back"] },
     { id: "One-Arm_Dumbbell_Row", eq: "dumbbells" },
     { id: "Inverted_Row", eq: "bodyweight" },
   ],
   v_pull: [
     { id: "Pullups", eq: "gym" },
     { id: "Wide-Grip_Lat_Pulldown", eq: "gym" },
+    { id: "Close-Grip_Front_Lat_Pulldown", eq: "gym" },
+    { id: "V-Bar_Pulldown", eq: "gym" },
     { id: "Bent_Over_Two-Dumbbell_Row", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Dumbbell_Incline_Row", eq: "dumbbells" },
     { id: "Inverted_Row", eq: "bodyweight" },
   ],
   chest_fly: [
     { id: "Cable_Crossover", eq: "gym", avoid: ["shoulders"] },
+    { id: "Flat_Bench_Cable_Flyes", eq: "gym", avoid: ["shoulders"] },
     { id: "Dumbbell_Flyes", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Butterfly", eq: "gym" },
     { id: "Push-Up_Wide", eq: "bodyweight", avoid: ["shoulders"] },
   ],
   lateral: [
     { id: "Side_Lateral_Raise", eq: "dumbbells" },
+    { id: "Cable_Seated_Lateral_Raise", eq: "gym" },
   ],
   rear_delt: [
     { id: "Face_Pull", eq: "gym" },
+    { id: "Reverse_Machine_Flyes", eq: "gym" },
+    { id: "Cable_Rear_Delt_Fly", eq: "gym" },
     { id: "Reverse_Flyes", eq: "dumbbells" },
     { id: "Superman", eq: "bodyweight" },
   ],
   biceps: [
     { id: "Barbell_Curl", eq: "gym" },
+    { id: "EZ-Bar_Curl", eq: "gym" },
+    { id: "Preacher_Curl", eq: "gym" },
     { id: "Dumbbell_Bicep_Curl", eq: "dumbbells" },
     { id: "Chin-Up", eq: "bodyweight" },
   ],
   biceps_alt: [
     { id: "Hammer_Curls", eq: "dumbbells" },
     { id: "Incline_Dumbbell_Curl", eq: "dumbbells" },
+    { id: "Concentration_Curls", eq: "dumbbells" },
   ],
   triceps: [
     { id: "Triceps_Pushdown", eq: "gym" },
+    { id: "Triceps_Pushdown_-_Rope_Attachment", eq: "gym" },
     { id: "Standing_Dumbbell_Triceps_Extension", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Tricep_Dumbbell_Kickback", eq: "dumbbells" },
     { id: "Bench_Dips", eq: "bodyweight", avoid: ["shoulders"] },
@@ -168,12 +194,14 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   triceps_alt: [
     { id: "Cable_Rope_Overhead_Triceps_Extension", eq: "gym", avoid: ["shoulders"] },
+    { id: "EZ-Bar_Skullcrusher", eq: "gym" },
     { id: "Tricep_Dumbbell_Kickback", eq: "dumbbells" },
     { id: "Push-Ups_-_Close_Triceps_Position", eq: "bodyweight" },
   ],
   core: [
     { id: "Cable_Crunch", eq: "gym", avoid: ["lower_back"] },
     { id: "Plank", eq: "bodyweight" },
+    { id: "Leg_Pull-In", eq: "bodyweight", avoid: ["lower_back"] },
   ],
   core_alt: [
     { id: "Dead_Bug", eq: "bodyweight" },
@@ -183,7 +211,7 @@ const PATTERNS: Record<Pattern, Option[]> = {
 
 const EQ_RANK: Record<EquipmentAccess, number> = { bodyweight: 0, dumbbells: 1, gym: 2 };
 
-function pick(pattern: Pattern, role: Role, input: PlannerInput, usedToday: Set<string>, usedInPlan: Set<string>): string | null {
+function pick(pattern: Pattern, role: Role, input: PlannerInput, usedToday: Set<string>, usedInPlan: Set<string>, variant: number): string | null {
   const allowed = PATTERNS[pattern].filter((o) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment]);
   const safe = allowed.filter((o) => !o.avoid?.some((l) => input.limitations.includes(l)));
   // Main lifts stay the best option; other slots prefer variety across the week.
@@ -191,8 +219,12 @@ function pick(pattern: Pattern, role: Role, input: PlannerInput, usedToday: Set<
   const fresh = safe.filter((o) => !usedToday.has(o.id));
   // Variety only among options for the same equipment, so a gym user isn't given a home substitute.
   const top = fresh[0];
-  const choice = top && (role === "main" ? top : fresh.find((o) => o.eq === top.eq && !usedInPlan.has(o.id)) ?? top);
-  return choice && getExercise(choice.id) ? choice.id : null;
+  if (!top || role === "main") return top && getExercise(top.id) ? top.id : null;
+  const sameTier = fresh.filter((o) => o.eq === top.eq);
+  const unused = sameTier.filter((o) => !usedInPlan.has(o.id));
+  const pool = unused.length ? unused : sameTier;
+  const choice = pool[variant % pool.length];
+  return getExercise(choice.id) ? choice.id : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -259,25 +291,57 @@ const LEGS_B: DayTemplate = {
   slots: [["hinge_alt", "main"], ["squat_alt", "secondary"], ["lunge", "secondary"], ["glutes", "accessory"], ["leg_curl", "accessory"], ["calves", "accessory"], ["core_alt", "accessory"]],
 };
 
-function chooseSplit(days: number): Split {
-  if (days <= 2) {
-    return { name: "Full Body (2 days)", basedOn: "Starting Strength / StrongLifts-style A/B full-body training", days: [FULL_A, FULL_B] };
-  }
-  if (days === 3) {
-    return { name: "Full Body (3 days)", basedOn: "Classic 3-day full-body programs (StrongLifts 5×5, GZCLP)", days: [FULL_A, FULL_B, FULL_C] };
-  }
-  if (days === 4) {
-    return { name: "Upper / Lower", basedOn: "PHUL — Power Hypertrophy Upper Lower", days: [UPPER_STRENGTH, LOWER_STRENGTH, UPPER_VOLUME, LOWER_VOLUME] };
-  }
-  if (days === 5) {
-    return {
-      name: "Upper / Lower + Push / Pull / Legs",
-      basedOn: "PHAT-style hybrid: strength upper/lower days plus a PPL volume block",
-      days: [UPPER_STRENGTH, LOWER_STRENGTH, { ...PUSH_A, slots: PUSH_A.slots.map(([p]) => [p, "secondary"] as Slot) }, { ...PULL_B, name: "Pull" }, { ...LEGS_B, name: "Legs" }],
-    };
-  }
-  return { name: "Push / Pull / Legs ×2", basedOn: "The popular 6-day Push/Pull/Legs (Reddit PPL) program", days: [PUSH_A, PULL_A, LEGS_A, PUSH_B, PULL_B, LEGS_B] };
+export type SplitId = "full_body" | "upper_lower" | "ppl" | "phat" | "ppl_ul";
+
+const SPLITS: Record<SplitId, { name: string; basedOn: string; description: string; days: Partial<Record<number, DayTemplate[]>> }> = {
+  full_body: {
+    name: "Full Body",
+    basedOn: "StrongLifts 5×5, GZCLP and Starting Strength-style full-body training",
+    description: "Every session trains your whole body. Great for beginners and busy schedules.",
+    days: {
+      2: [FULL_A, FULL_B],
+      3: [FULL_A, FULL_B, FULL_C],
+      4: [{ ...FULL_A, name: "Full Body A1" }, { ...FULL_B, name: "Full Body B1" }, { ...FULL_A, name: "Full Body A2" }, { ...FULL_B, name: "Full Body B2" }],
+    },
+  },
+  upper_lower: {
+    name: "Upper / Lower",
+    basedOn: "PHUL — Power Hypertrophy Upper Lower",
+    description: "Alternates upper-body and lower-body days, with heavy and higher-rep sessions.",
+    days: { 2: [UPPER_STRENGTH, LOWER_STRENGTH], 4: [UPPER_STRENGTH, LOWER_STRENGTH, UPPER_VOLUME, LOWER_VOLUME] },
+  },
+  ppl: {
+    name: "Push / Pull / Legs",
+    basedOn: "The popular Push/Pull/Legs (Reddit PPL) program",
+    description: "Pushing muscles, pulling muscles and legs on separate days. More volume per muscle.",
+    days: { 3: [PUSH_A, PULL_A, LEGS_A], 6: [PUSH_A, PULL_A, LEGS_A, PUSH_B, PULL_B, LEGS_B] },
+  },
+  phat: {
+    name: "Upper / Lower + Push / Pull / Legs",
+    basedOn: "PHAT-style hybrid: strength upper/lower days plus a PPL volume block",
+    description: "Two heavy strength days, then three higher-volume push, pull and leg days.",
+    days: { 5: [UPPER_STRENGTH, LOWER_STRENGTH, { ...PUSH_A, slots: PUSH_A.slots.map(([p]) => [p, "secondary"] as Slot) }, { ...PULL_B, name: "Pull" }, { ...LEGS_B, name: "Legs" }] },
+  },
+  ppl_ul: {
+    name: "Push / Pull / Legs + Upper / Lower",
+    basedOn: "The 5-day PPL-UL split",
+    description: "A full push/pull/legs round, then an upper and a lower day to hit everything twice.",
+    days: { 5: [PUSH_A, PULL_A, LEGS_A, { ...UPPER_STRENGTH, name: "Upper" }, { ...LOWER_VOLUME, name: "Lower" }] },
+  },
+};
+
+const DEFAULT_SPLIT: Record<number, SplitId> = { 2: "full_body", 3: "full_body", 4: "upper_lower", 5: "phat", 6: "ppl" };
+
+/** The splits that fit a number of training days, the default first. */
+export function splitOptions(days: number) {
+  const d = clampDays(days);
+  return (Object.keys(SPLITS) as SplitId[])
+    .filter((id) => SPLITS[id].days[d])
+    .sort((a, b) => Number(b === DEFAULT_SPLIT[d]) - Number(a === DEFAULT_SPLIT[d]))
+    .map((id) => ({ id, name: SPLITS[id].name, basedOn: SPLITS[id].basedOn, description: SPLITS[id].description }));
 }
+
+const clampDays = (days: number) => Math.min(6, Math.max(2, days));
 
 const WEEKDAYS: Record<number, string[]> = {
   2: ["Mon", "Thu"],
@@ -351,20 +415,22 @@ const CARDIO: Record<Goal, string | undefined> = {
 /* ------------------------------------------------------------------ */
 
 export function generatePlan(input: PlannerInput): TrainingPlan {
-  const days = Math.min(6, Math.max(2, input.daysPerWeek));
-  const split = chooseSplit(days);
+  const days = clampDays(input.daysPerWeek);
+  const splitId = input.splitId && SPLITS[input.splitId].days[days] ? input.splitId : DEFAULT_SPLIT[days];
+  const split = SPLITS[splitId];
+  const variant = input.variant ?? 0;
   const cardio = CARDIO[input.goal];
   const cardioMin = cardio ? (input.sessionMin <= 45 ? 10 : 15) : 0;
   const budget = input.sessionMin - 7 - cardioMin; // minus warm-up and cardio
 
   const usedInPlan = new Set<string>();
-  const planDays: PlanDay[] = split.days.map((tpl, i) => {
+  const planDays: PlanDay[] = split.days[days]!.map((tpl, i) => {
     const used = new Set<string>();
     const exercises: PlanExercise[] = [];
     let minutes = 0;
 
     for (const [pattern, role] of tpl.slots) {
-      const id = pick(pattern, role, input, used, usedInPlan);
+      const id = pick(pattern, role, input, used, usedInPlan, variant);
       if (!id) continue;
       const s = scheme(input.goal, role, input.experience);
       const cost = minutesFor(s);
@@ -393,8 +459,10 @@ export function generatePlan(input: PlannerInput): TrainingPlan {
   };
 
   return {
-    name: split.name,
+    name: `${split.name} (${days} days)`,
     basedOn: split.basedOn,
+    splitId,
+    variant,
     summary: `${days} days per week, about ${input.sessionMin} minutes per session, designed to ${goalText[input.goal]}.`,
     days: planDays,
     warmup: "5 minutes of easy cardio, then 1–2 light warm-up sets of your first exercise.",
@@ -416,4 +484,66 @@ function progressionRules(input: PlannerInput): string[] {
 
 export function parsePlan(data: string): TrainingPlan {
   return JSON.parse(data) as TrainingPlan;
+}
+
+/* ------------------------------------------------------------------ */
+/* Editing: swaps and additions.                                       */
+/* ------------------------------------------------------------------ */
+
+const LIBRARY_EQUIPMENT: Record<EquipmentAccess, string[] | null> = {
+  gym: null, // anything
+  dumbbells: ["dumbbell", "body only", "none"],
+  bodyweight: ["body only", "none"],
+};
+
+const LEVEL_RANK: Record<string, number> = { beginner: 0, intermediate: 1, expert: 2 };
+
+/**
+ * Exercises that can replace `exerciseId`: first the curated options for the same movement
+ * (filtered for the user's equipment and problem areas), then other exercises for the same muscle.
+ */
+export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience">) {
+  const current = getExercise(exerciseId);
+  const fits = (o: Option) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment] && !o.avoid?.some((l) => input.limitations.includes(l));
+
+  const recommended: Exercise[] = [];
+  for (const options of Object.values(PATTERNS)) {
+    if (!options.some((o) => o.id === exerciseId)) continue;
+    for (const o of options) {
+      const ex = getExercise(o.id);
+      if (ex && o.id !== exerciseId && fits(o) && !recommended.includes(ex)) recommended.push(ex);
+    }
+  }
+
+  const allowedEq = LIBRARY_EQUIPMENT[input.equipment];
+  const muscle = current?.primary[0];
+  const maxLevel = input.experience === "beginner" ? 1 : 2;
+  const sameMuscle = !muscle ? [] : allExercises
+    .filter((e) =>
+      e.id !== exerciseId &&
+      e.category === "strength" &&
+      e.primary.includes(muscle) &&
+      (!allowedEq || allowedEq.includes(e.equipment)) &&
+      (LEVEL_RANK[e.level] ?? 0) <= maxLevel &&
+      !recommended.includes(e))
+    .sort((a, b) =>
+      Number(b.mechanic === current?.mechanic) - Number(a.mechanic === current?.mechanic) ||
+      (LEVEL_RANK[a.level] ?? 0) - (LEVEL_RANK[b.level] ?? 0) ||
+      a.name.localeCompare(b.name))
+    .slice(0, 15);
+
+  return { recommended, sameMuscle };
+}
+
+/** Keeps sets and rest when swapping, and adapts the rep target to the new exercise. */
+export function swapPrescription(old: PlanExercise, newId: string, goal: Goal): PlanExercise {
+  const special = TIMED.has(old.exerciseId) || PULL_UPS.has(old.exerciseId) || old.reps === "12-20";
+  const baseReps = special ? SCHEMES[goal].secondary.reps : old.reps;
+  return { ...old, exerciseId: newId, reps: repsFor(newId, baseReps, goal) };
+}
+
+/** Prescription for an exercise the user adds to a day themselves. */
+export function addedPrescription(exerciseId: string, goal: Goal, experience: Experience): PlanExercise {
+  const s = scheme(goal, "accessory", experience);
+  return { exerciseId, sets: s.sets, reps: repsFor(exerciseId, s.reps, goal), restSec: s.restSec };
 }

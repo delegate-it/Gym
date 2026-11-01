@@ -5,8 +5,8 @@ import { getExercise } from "@/lib/exercises";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { StartButton } from "@/components/StartButton";
 
-export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
-  const { welcome } = await searchParams;
+export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string; rebuilt?: string }> }) {
+  const { welcome, rebuilt } = await searchParams;
   const user = await requireUser();
   const plan = await getActivePlan(user.id);
   if (!plan) {
@@ -28,9 +28,20 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
+      {rebuilt && (
+        <div className="rounded-2xl bg-brand-50 p-4 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+          ✅ Your new plan is ready. It starts from Day 1, and your history is kept.
+        </div>
+      )}
+
       <div>
-        <p className="text-sm muted">Your training plan</p>
-        <h1 className="text-2xl font-bold">{plan.name}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm muted">Your training plan{plan.edited && <span className="chip ml-2">Customised</span>}</p>
+            <h1 className="text-2xl font-bold">{plan.name}</h1>
+          </div>
+          <Link href="/plan/change" className="btn-ghost shrink-0 px-3 py-2 text-sm">Change plan</Link>
+        </div>
         <p className="mt-1 text-sm muted">{plan.summary}</p>
         <p className="mt-2 text-xs"><span className="chip">Based on: {plan.basedOn}</span></p>
       </div>
@@ -49,7 +60,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
       <p className="-mt-3 text-xs muted">Suggested schedule — train on any days you like, just keep the order and rest a day between hard sessions when you can.</p>
 
       {plan.days.map((day, i) => (
-        <section key={i} className={`card ${i === nextIdx ? "ring-2 ring-brand-500" : ""}`}>
+        <section key={i} id={`day-${i}`} className={`card scroll-mt-20 ${i === nextIdx ? "ring-2 ring-brand-500" : ""}`}>
           <div className="mb-3 flex items-start justify-between gap-2">
             <div>
               <p className="text-xs muted">Day {i + 1} · {day.weekday}{i === nextIdx && " · Up next"}</p>
@@ -59,19 +70,25 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
             <StartButton dayIndex={i} label="Start" className={i === nextIdx ? "btn-primary py-2" : "btn-ghost py-2"} />
           </div>
           <ol className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {day.exercises.map((e) => (
-              <li key={e.exerciseId}>
-                <Link href={`/exercises/${e.exerciseId}`} className="flex items-center gap-3 py-2">
+            {day.exercises.map((e, j) => (
+              <li key={`${e.exerciseId}-${j}`}>
+                <Link href={`/plan/edit/${i}/${j}`} className="flex items-center gap-3 py-2">
                   <ExerciseThumb id={e.exerciseId} size={48} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{getExercise(e.exerciseId)?.name}</p>
                     <p className="text-xs muted">{e.sets} sets × {e.reps} reps · rest {e.restSec}s</p>
                   </div>
-                  <span className="muted">›</span>
+                  <span className="flex items-center gap-1 text-xs muted" aria-label="Edit">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    Edit
+                  </span>
                 </Link>
               </li>
             ))}
           </ol>
+          <Link href={`/exercises?planDay=${i}`} className="mt-1 block rounded-xl border border-dashed border-zinc-300 py-2 text-center text-sm font-medium muted dark:border-zinc-700">
+            + Add exercise
+          </Link>
           {day.cardio && <p className="mt-2 rounded-lg bg-zinc-100 p-2 text-xs dark:bg-zinc-800">🏃 {day.cardio}</p>}
         </section>
       ))}
@@ -82,7 +99,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
         <ul className="list-disc space-y-1.5 pl-5">
           {plan.progression.map((r) => <li key={r}>{r}</li>)}
         </ul>
-        <Link href="/profile" className="btn-ghost w-full">Change my answers / rebuild plan</Link>
+        <p className="muted">Tap any exercise to swap it, change its sets and reps, or remove it. Use <b>Change plan</b> for a whole new plan.</p>
       </section>
     </div>
   );
