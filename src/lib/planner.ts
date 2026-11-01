@@ -18,6 +18,8 @@ export type PlannerInput = {
   splitId?: SplitId;
   /** Changes the accessory exercise selection ("fresh exercises"). */
   variant?: number;
+  /** Specific exercises to leave out because of a described injury. */
+  avoidIds?: string[];
 };
 
 export type PlanExercise = {
@@ -249,8 +251,9 @@ const PATTERNS: Record<Pattern, Option[]> = {
 const EQ_RANK: Record<EquipmentAccess, number> = { bodyweight: 0, dumbbells: 1, gym: 2 };
 
 /** True when an option suits the user's equipment and doesn't load any injured area. */
-function suits(o: Option, input: Pick<PlannerInput, "equipment" | "limitations">) {
+function suits(o: Option, input: Pick<PlannerInput, "equipment" | "limitations" | "avoidIds">) {
   return EQ_RANK[o.eq] <= EQ_RANK[input.equipment] &&
+    !input.avoidIds?.includes(o.id) &&
     !o.avoid?.some((l) => input.limitations.includes(l)) &&
     injuryConflicts(getExercise(o.id), input.limitations).length === 0;
 }
@@ -566,7 +569,7 @@ const LEVEL_RANK: Record<string, number> = { beginner: 0, intermediate: 1, exper
  * Exercises that can replace `exerciseId`: first the curated options for the same movement
  * (filtered for the user's equipment and injuries), then other exercises for the same muscle.
  */
-export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience">) {
+export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "equipment" | "limitations" | "experience" | "avoidIds">) {
   const current = getExercise(exerciseId);
   const fits = (o: Option) => suits(o, input);
 
@@ -590,6 +593,7 @@ export function alternativesFor(exerciseId: string, input: Pick<PlannerInput, "e
       (!allowedEq || allowedEq.includes(e.equipment)) &&
       (LEVEL_RANK[e.level] ?? 0) <= maxLevel &&
       injuryConflicts(e, input.limitations).length === 0 &&
+      !input.avoidIds?.includes(e.id) &&
       !recommended.includes(e))
     .sort((a, b) =>
       Number(b.mechanic === current?.mechanic) - Number(a.mechanic === current?.mechanic) ||
@@ -616,12 +620,15 @@ export function addedPrescription(exerciseId: string, goal: Goal, experience: Ex
 /** Every hand-picked exercise once, with the equipment level it needs. */
 const CURATED: Option[] = [...new Map(Object.values(PATTERNS).flat().map((o) => [o.id, o] as const)).values()];
 
+/** IDs of every hand-picked exercise the planner can use. */
+export const curatedExerciseIds = () => CURATED.map((o) => o.id);
+
 function libraryTier(equipment?: string): EquipmentAccess {
   if (!equipment || equipment === "body only" || equipment === "none") return "bodyweight";
   return equipment === "dumbbell" ? "dumbbells" : "gym";
 }
 
-type ReplaceInput = Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal">;
+type ReplaceInput = Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal" | "avoidIds">;
 
 /**
  * A similar hand-picked exercise to replace `item` with: same main muscle, trained the same way
@@ -687,7 +694,7 @@ export function adaptPlanToInjuries(plan: TrainingPlan, input: ReplaceInput): { 
     const used = new Set<string>();
     const exercises: PlanExercise[] = [];
     for (const item of day.exercises) {
-      if (injuryConflicts(getExercise(item.exerciseId), input.limitations).length === 0) {
+      if (injuryConflicts(getExercise(item.exerciseId), input.limitations).length === 0 && !input.avoidIds?.includes(item.exerciseId)) {
         exercises.push(item);
         continue;
       }

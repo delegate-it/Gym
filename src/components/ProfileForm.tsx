@@ -7,12 +7,12 @@ import { INJURY_AREAS } from "@/lib/injuries";
 type Values = {
   name: string; sex: string; age: string; heightCm: string; weightKg: string; units: "kg" | "lb";
   goal: string; experience: string; daysPerWeek: number; sessionMin: number; equipment: string;
-  limitations: string[]; activity: string; diet: string; mealsPerDay: number;
+  limitations: string[]; injuryNotes: string; activity: string; diet: string; mealsPerDay: number;
 };
 
 const DEFAULTS: Values = {
   name: "", sex: "", age: "", heightCm: "", weightKg: "", units: "kg", goal: "", experience: "",
-  daysPerWeek: 3, sessionMin: 60, equipment: "", limitations: [], activity: "", diet: "none", mealsPerDay: 3,
+  daysPerWeek: 3, sessionMin: 60, equipment: "", limitations: [], injuryNotes: "", activity: "", diet: "none", mealsPerDay: 3,
 };
 
 type Choice = { value: string; label: string; hint?: string; icon?: string };
@@ -49,7 +49,7 @@ const Q = ({ title, children }: { title: string; children: React.ReactNode }) =>
   <div className="space-y-2"><h3 className="font-semibold">{title}</h3>{children}</div>
 );
 
-export function ProfileForm({ initial, isEdit = false }: { initial?: Partial<Values>; isEdit?: boolean }) {
+export function ProfileForm({ initial, isEdit = false, aiEnabled = false }: { initial?: Partial<Values>; isEdit?: boolean; aiEnabled?: boolean }) {
   const [v, setV] = useState<Values>({ ...DEFAULTS, ...initial });
   const [step, setStep] = useState(0);
   const [state, action, pending] = useActionState(saveProfile, {});
@@ -151,7 +151,14 @@ export function ProfileForm({ initial, isEdit = false }: { initial?: Partial<Val
                 );
               })}
             </div>
-            <p className="text-xs muted">We&apos;ll leave out exercises that load these areas and pick safer ones. You can update this any time.</p>
+            <textarea
+              value={v.injuryNotes}
+              onChange={(e) => set("injuryNotes")(e.target.value.slice(0, 1000))}
+              rows={3}
+              placeholder="Describe it (optional), e.g. “tennis elbow, gripping hurts” or “ACL surgery 6 months ago”"
+              className="input text-sm"
+            />
+            <p className="text-xs muted">We&apos;ll leave out exercises that could make it worse and pick safer ones.{aiEnabled ? " Your description is analysed by AI (Claude)." : ""} You can update this any time.</p>
           </Q>
         </div>
       ),

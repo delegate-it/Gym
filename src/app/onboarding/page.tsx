@@ -10,7 +10,7 @@ export default async function Onboarding() {
   return (
     <main className="mx-auto max-w-md px-4 py-8">
       <p className="mb-6 text-sm muted">Let&apos;s build your plan. It takes about a minute.</p>
-      <ProfileForm />
+      <ProfileForm aiEnabled={Boolean(process.env.ANTHROPIC_API_KEY)} />
     </main>
   );
 }

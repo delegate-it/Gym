@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { generatePlan, parsePlan, type EquipmentAccess, type Experience, type Goal, type Limitation, type PlannerInput, type SplitId, type TrainingPlan } from "./planner";
 
-type ProfileFields = { goal: string; experience: string; daysPerWeek: number; sessionMin: number; equipment: string; limitations: string };
+type ProfileFields = { goal: string; experience: string; daysPerWeek: number; sessionMin: number; equipment: string; limitations: string; injuryAvoid?: string };
 
 export function plannerInput(p: ProfileFields): PlannerInput {
   return {
@@ -12,6 +12,7 @@ export function plannerInput(p: ProfileFields): PlannerInput {
     sessionMin: p.sessionMin,
     equipment: p.equipment as EquipmentAccess,
     limitations: p.limitations.split(",").filter(Boolean) as Limitation[],
+    avoidIds: (p.injuryAvoid ?? "").split(",").filter(Boolean),
   };
 }
 

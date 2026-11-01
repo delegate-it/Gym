@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { parseLimitations } from "@/lib/injuries";
+import { analyzeInjury, MAX_DESCRIPTION, parseInjuryInfo } from "@/lib/injury-analysis";
 import { adaptPlanToInjuries, type EquipmentAccess, type Experience, type Goal } from "@/lib/planner";
 import { createPlan, getActivePlanRecord, plannerInput, savePlan } from "@/lib/plans";
 
@@ -28,7 +29,7 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   const weightKg = num(form.get("weightKg"), 30, 300);
   if (!age || !heightCm || !weightKg) return { error: "Please check your age, height and weight." };
 
-  const limitations = parseLimitations(form.getAll("limitations").map(String));
+  const injuries = await resolveInjuries(form, user.profile);
   const data = {
     name: String(form.get("name") || "").trim().slice(0, 60) || null,
     sex: pickOne(form.get("sex"), ["male", "female"] as const, "male"),
@@ -40,7 +41,7 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
     daysPerWeek: num(form.get("daysPerWeek"), 2, 6) ?? 3,
     sessionMin: num(form.get("sessionMin"), 20, 120) ?? 60,
     equipment: pickOne<EquipmentAccess>(form.get("equipment"), ["gym", "dumbbells", "bodyweight"], "gym"),
-    limitations: limitations.join(","),
+    ...injuries,
     activity: pickOne(form.get("activity"), ["sedentary", "light", "active", "very_active"] as const, "light"),
     diet: pickOne(form.get("diet"), ["none", "vegetarian", "vegan"] as const, "none"),
     mealsPerDay: num(form.get("mealsPerDay"), 2, 6) ?? 3,
@@ -53,9 +54,9 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   if (weightChanged) await db.bodyWeight.create({ data: { userId: user.id, weightKg } });
 
   // Only rebuild the plan when something that affects training changed.
-  const planKeys = ["goal", "experience", "daysPerWeek", "sessionMin", "equipment", "limitations"] as const;
+  const planKeys = ["goal", "experience", "daysPerWeek", "sessionMin", "equipment", "limitations", "injuryAvoid"] as const;
   const changed = planKeys.filter((k) => String(user.profile?.[k]) !== String(data[k]));
-  if (!isNew && changed.length === 1 && changed[0] === "limitations") {
+  if (!isNew && changed.length && changed.every((k) => k === "limitations" || k === "injuryAvoid")) {
     // Only injuries changed: adapt the current plan instead of rebuilding it.
     await applyInjuries(user.id, data);
   } else if (isNew || changed.length || form.get("regenerate")) {
@@ -65,6 +66,29 @@ export async function saveProfile(_: ProfileState, form: FormData): Promise<Prof
   }
 
   redirect(isNew ? "/plan?welcome=1" : "/today");
+}
+
+/**
+ * Injury fields from a form: the ticked areas plus, if the user described the injury, the areas
+ * and exercises the description rules out. A description can only add restrictions. An unchanged
+ * description reuses the stored analysis instead of analysing it again.
+ */
+async function resolveInjuries(form: FormData, previous?: { injuryNotes: string; injuryAvoid: string; injuryInfo: string } | null) {
+  const ticked = parseLimitations(form.getAll("limitations").map(String));
+  const notes = String(form.get("injuryNotes") ?? "").trim().slice(0, MAX_DESCRIPTION);
+  if (!notes) return { limitations: ticked.join(","), injuryNotes: "", injuryAvoid: "", injuryInfo: "" };
+
+  const stored = previous?.injuryNotes === notes ? parseInjuryInfo(previous.injuryInfo) : null;
+  if (stored) {
+    return { limitations: [...new Set([...ticked, ...stored.areas])].join(","), injuryNotes: notes, injuryAvoid: previous!.injuryAvoid, injuryInfo: previous!.injuryInfo };
+  }
+  const { avoidIds, ...info } = await analyzeInjury(notes);
+  return {
+    limitations: [...new Set([...ticked, ...info.areas])].join(","),
+    injuryNotes: notes,
+    injuryAvoid: avoidIds.join(","),
+    injuryInfo: JSON.stringify(info),
+  };
 }
 
 /** Swaps out exercises in the active plan that load an injured area. */
@@ -78,9 +102,9 @@ async function applyInjuries(userId: string, profile: Parameters<typeof plannerI
 /** Saves the user's injured areas and adapts their plan to them. */
 export async function updateInjuries(form: FormData) {
   const user = await requireUser();
-  const limitations = parseLimitations(form.getAll("limitations").map(String)).join(",");
-  await db.profile.update({ where: { userId: user.id }, data: { limitations } });
-  await applyInjuries(user.id, { ...user.profile, limitations });
+  const injuries = await resolveInjuries(form, user.profile);
+  await db.profile.update({ where: { userId: user.id }, data: injuries });
+  await applyInjuries(user.id, { ...user.profile, ...injuries });
   revalidatePath("/plan");
   revalidatePath("/today");
   redirect("/plan?injuries=1");

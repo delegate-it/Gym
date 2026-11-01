@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { getActivePlan, getNextDayIndex } from "@/lib/data";
 import { getExercise } from "@/lib/exercises";
 import { injuryLabel, parseLimitations } from "@/lib/injuries";
+import { parseInjuryInfo } from "@/lib/injury-analysis";
+import { InjuryInfo } from "@/components/InjuryInfo";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { StartButton } from "@/components/StartButton";
 import { ActionButton } from "@/components/ActionButton";
@@ -22,6 +24,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   }
   const nextIdx = await getNextDayIndex(user.id, plan.id, plan.days.length);
   const injured = parseLimitations(user.profile.limitations);
+  const injuryInfo = user.profile.injuryNotes ? parseInjuryInfo(user.profile.injuryInfo) : null;
 
   return (
     <div className="space-y-5">
@@ -56,6 +59,12 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
               </ul>
             </>
           )}
+      {injuries && injuryInfo && (
+        <section className="card">
+          <h2 className="mb-2 font-bold">About your injury</h2>
+          <InjuryInfo info={injuryInfo} avoidIds={user.profile.injuryAvoid.split(",").filter(Boolean)} />
+        </section>
+      )}
         </div>
       )}
 
@@ -88,7 +97,8 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
         <span className="text-2xl">🩹</span>
         <span className="min-w-0 flex-1 text-sm">
           <b>{injured.length ? "Injuries: " + injured.map(injuryLabel).join(", ") : "Injured or in pain?"}</b>
-          <span className="block muted">{injured.length ? "Your plan avoids exercises that load these areas. Tap to update." : "Tell us where, and we'll swap out exercises that load it."}</span>
+          {user.profile.injuryNotes && <span className="block truncate italic muted">“{user.profile.injuryNotes}”</span>}
+          <span className="block muted">{injured.length ? "Your plan avoids exercises that load these areas. Tap to update." : "Describe it, and we'll swap out exercises that could make it worse."}</span>
         </span>
         <span className="muted">›</span>
       </Link>

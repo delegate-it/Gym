@@ -16,6 +16,7 @@ export default async function ExerciseDetail({ params }: { params: Promise<{ id:
   const user = await requireUser();
   const units = user.profile.units as Units;
   const conflicts = injuryConflicts(ex, parseLimitations(user.profile.limitations));
+  const describedAvoid = user.profile.injuryAvoid.split(",").includes(ex.id);
 
   const sets = await db.workoutSet.findMany({
     where: { exerciseId: ex.id, done: true, workout: { userId: user.id, completedAt: { not: null } } },
@@ -47,6 +48,12 @@ export default async function ExerciseDetail({ params }: { params: Promise<{ id:
         <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           ⚠️ This exercise can load your <b>{conflicts.map((l) => injuryLabel(l).toLowerCase()).join(" and ")}</b>. Consider a safer alternative,
           or keep it light and stop if it hurts.
+        </p>
+      )}
+
+      {describedAvoid && conflicts.length === 0 && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          ⚠️ Based on the injury you described, this exercise is best avoided for now.
         </p>
       )}
 
