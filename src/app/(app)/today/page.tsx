@@ -7,6 +7,8 @@ import { calculateNutrition, type NutritionInput } from "@/lib/nutrition";
 import type { Goal } from "@/lib/planner";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { StartButton } from "@/components/StartButton";
+import { ActionButton } from "@/components/ActionButton";
+import { shufflePlanDay } from "@/app/actions/plan";
 
 const TIPS = [
   "Consistency beats intensity. Showing up is the win.",
@@ -17,7 +19,8 @@ const TIPS = [
   "A 10-minute walk after meals helps recovery and digestion.",
 ];
 
-export default async function Today() {
+export default async function Today({ searchParams }: { searchParams: Promise<{ shuffled?: string }> }) {
+  const { shuffled } = await searchParams;
   const user = await requireUser();
   const p = user.profile;
   const plan = await getActivePlan(user.id);
@@ -72,8 +75,16 @@ export default async function Today() {
               </li>
             ))}
           </ul>
+          {shuffled && (
+            <p className="mb-3 rounded-lg bg-brand-50 p-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+              ✅ New exercises for this workout. Tap again for another mix.
+            </p>
+          )}
           <StartButton dayIndex={nextIdx} />
-          <Link href="/plan" className="mt-2 block text-center text-sm muted underline">Pick a different day</Link>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <ActionButton action={shufflePlanDay.bind(null, nextIdx, "today")} className="btn-ghost py-2 text-sm">🔀 New exercises</ActionButton>
+            <Link href="/plan" className="btn-ghost py-2 text-sm">Pick another day</Link>
+          </div>
         </div>
       ) : (
         <div className="card">

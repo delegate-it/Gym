@@ -4,9 +4,11 @@ import { getActivePlan, getNextDayIndex } from "@/lib/data";
 import { getExercise } from "@/lib/exercises";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { StartButton } from "@/components/StartButton";
+import { ActionButton } from "@/components/ActionButton";
+import { shufflePlanDay } from "@/app/actions/plan";
 
-export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string; rebuilt?: string }> }) {
-  const { welcome, rebuilt } = await searchParams;
+export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string; rebuilt?: string; shuffled?: string }> }) {
+  const { welcome, rebuilt, shuffled } = await searchParams;
   const user = await requireUser();
   const plan = await getActivePlan(user.id);
   if (!plan) {
@@ -86,9 +88,17 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
               </li>
             ))}
           </ol>
-          <Link href={`/exercises?planDay=${i}`} className="mt-1 block rounded-xl border border-dashed border-zinc-300 py-2 text-center text-sm font-medium muted dark:border-zinc-700">
-            + Add exercise
-          </Link>
+          {shuffled === String(i) && (
+            <p className="mt-2 rounded-lg bg-brand-50 p-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+              ✅ New exercises for this day. Not quite right? Tap again for another mix, or tap an exercise to pick one yourself.
+            </p>
+          )}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <ActionButton action={shufflePlanDay.bind(null, i, "plan")} className="btn-ghost py-2 text-sm">🔀 Change all exercises</ActionButton>
+            <Link href={`/exercises?planDay=${i}`} className="btn rounded-xl border border-dashed border-zinc-300 py-2 text-sm font-medium muted dark:border-zinc-700">
+              + Add exercise
+            </Link>
+          </div>
           {day.cardio && <p className="mt-2 rounded-lg bg-zinc-100 p-2 text-xs dark:bg-zinc-800">🏃 {day.cardio}</p>}
         </section>
       ))}

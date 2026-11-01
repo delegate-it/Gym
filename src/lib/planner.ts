@@ -85,12 +85,17 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   hinge: [
     { id: "Barbell_Deadlift", eq: "gym", avoid: ["lower_back"] },
+    { id: "Trap_Bar_Deadlift", eq: "gym", avoid: ["lower_back"] },
+    { id: "Sumo_Deadlift", eq: "gym", avoid: ["lower_back"] },
+    { id: "Rack_Pulls", eq: "gym", avoid: ["lower_back"] },
     { id: "Stiff-Legged_Dumbbell_Deadlift", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Barbell_Hip_Thrust", eq: "gym" },
     { id: "Single_Leg_Glute_Bridge", eq: "bodyweight" },
   ],
   hinge_alt: [
     { id: "Romanian_Deadlift", eq: "gym", avoid: ["lower_back"] },
+    { id: "Good_Morning", eq: "gym", avoid: ["lower_back"] },
+    { id: "Pull_Through", eq: "gym" },
     { id: "Stiff-Legged_Dumbbell_Deadlift", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Barbell_Hip_Thrust", eq: "gym" },
     { id: "Single_Leg_Glute_Bridge", eq: "bodyweight" },
@@ -107,17 +112,23 @@ const PATTERNS: Record<Pattern, Option[]> = {
   ],
   leg_ext: [
     { id: "Leg_Extensions", eq: "gym", avoid: ["knees"] },
+    { id: "Single-Leg_Leg_Extension", eq: "gym", avoid: ["knees"] },
     { id: "Dumbbell_Step_Ups", eq: "dumbbells", avoid: ["knees"] },
     { id: "Split_Squats", eq: "bodyweight", avoid: ["knees"] },
   ],
   calves: [
     { id: "Standing_Calf_Raises", eq: "gym" },
     { id: "Seated_Calf_Raise", eq: "gym" },
+    { id: "Smith_Machine_Calf_Raise", eq: "gym" },
     { id: "Calf_Raise_On_A_Dumbbell", eq: "dumbbells" },
     { id: "Standing_Dumbbell_Calf_Raise", eq: "dumbbells" },
+    { id: "Dumbbell_Seated_One-Leg_Calf_Raise", eq: "dumbbells" },
   ],
   h_push: [
     { id: "Barbell_Bench_Press_-_Medium_Grip", eq: "gym", avoid: ["shoulders"] },
+    { id: "Smith_Machine_Bench_Press", eq: "gym", avoid: ["shoulders"] },
+    { id: "Decline_Barbell_Bench_Press", eq: "gym", avoid: ["shoulders"] },
+    { id: "Leverage_Chest_Press", eq: "gym" },
     { id: "Dumbbell_Bench_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Pushups", eq: "bodyweight", avoid: ["shoulders"] },
     { id: "Dumbbell_Floor_Press", eq: "dumbbells" },
@@ -127,13 +138,18 @@ const PATTERNS: Record<Pattern, Option[]> = {
     { id: "Incline_Dumbbell_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Decline_Push-Up", eq: "bodyweight", avoid: ["shoulders"] },
     { id: "Machine_Bench_Press", eq: "gym" },
+    { id: "Barbell_Incline_Bench_Press_-_Medium_Grip", eq: "gym", avoid: ["shoulders"] },
+    { id: "Leverage_Incline_Chest_Press", eq: "gym" },
+    { id: "Hammer_Grip_Incline_DB_Bench_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Incline_Push-Up", eq: "bodyweight" },
   ],
   v_push: [
     { id: "Standing_Military_Press", eq: "gym", avoid: ["shoulders", "lower_back"] },
+    { id: "Seated_Barbell_Military_Press", eq: "gym", avoid: ["shoulders"] },
     { id: "Machine_Shoulder_Military_Press", eq: "gym", avoid: ["shoulders"] },
     { id: "Seated_Dumbbell_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Arnold_Dumbbell_Press", eq: "dumbbells", avoid: ["shoulders"] },
+    { id: "Dumbbell_One-Arm_Shoulder_Press", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Decline_Push-Up", eq: "bodyweight", avoid: ["shoulders"] },
     { id: "Side_Lateral_Raise", eq: "dumbbells" },
     { id: "Incline_Push-Up", eq: "bodyweight" },
@@ -142,7 +158,10 @@ const PATTERNS: Record<Pattern, Option[]> = {
     { id: "Bent_Over_Barbell_Row", eq: "gym", avoid: ["lower_back"] },
     { id: "Seated_Cable_Rows", eq: "gym" },
     { id: "T-Bar_Row_with_Handle", eq: "gym", avoid: ["lower_back"] },
+    { id: "Reverse_Grip_Bent-Over_Rows", eq: "gym", avoid: ["lower_back"] },
+    { id: "Leverage_High_Row", eq: "gym" },
     { id: "One-Arm_Dumbbell_Row", eq: "dumbbells" },
+    { id: "Bent_Over_Two-Dumbbell_Row_With_Palms_In", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Inverted_Row", eq: "bodyweight" },
   ],
   v_pull: [
@@ -150,6 +169,8 @@ const PATTERNS: Record<Pattern, Option[]> = {
     { id: "Wide-Grip_Lat_Pulldown", eq: "gym" },
     { id: "Close-Grip_Front_Lat_Pulldown", eq: "gym" },
     { id: "V-Bar_Pulldown", eq: "gym" },
+    { id: "Underhand_Cable_Pulldowns", eq: "gym" },
+    { id: "Full_Range-Of-Motion_Lat_Pulldown", eq: "gym" },
     { id: "Bent_Over_Two-Dumbbell_Row", eq: "dumbbells", avoid: ["lower_back"] },
     { id: "Dumbbell_Incline_Row", eq: "dumbbells" },
     { id: "Inverted_Row", eq: "bodyweight" },
@@ -164,6 +185,7 @@ const PATTERNS: Record<Pattern, Option[]> = {
   lateral: [
     { id: "Side_Lateral_Raise", eq: "dumbbells" },
     { id: "Cable_Seated_Lateral_Raise", eq: "gym" },
+    { id: "One-Arm_Side_Laterals", eq: "dumbbells" },
   ],
   rear_delt: [
     { id: "Face_Pull", eq: "gym" },
@@ -176,17 +198,21 @@ const PATTERNS: Record<Pattern, Option[]> = {
     { id: "Barbell_Curl", eq: "gym" },
     { id: "EZ-Bar_Curl", eq: "gym" },
     { id: "Preacher_Curl", eq: "gym" },
+    { id: "Standing_Biceps_Cable_Curl", eq: "gym" },
     { id: "Dumbbell_Bicep_Curl", eq: "dumbbells" },
+    { id: "Dumbbell_Alternate_Bicep_Curl", eq: "dumbbells" },
     { id: "Chin-Up", eq: "bodyweight" },
   ],
   biceps_alt: [
     { id: "Hammer_Curls", eq: "dumbbells" },
     { id: "Incline_Dumbbell_Curl", eq: "dumbbells" },
     { id: "Concentration_Curls", eq: "dumbbells" },
+    { id: "Cable_Hammer_Curls_-_Rope_Attachment", eq: "gym" },
   ],
   triceps: [
     { id: "Triceps_Pushdown", eq: "gym" },
     { id: "Triceps_Pushdown_-_Rope_Attachment", eq: "gym" },
+    { id: "Reverse_Grip_Triceps_Pushdown", eq: "gym" },
     { id: "Standing_Dumbbell_Triceps_Extension", eq: "dumbbells", avoid: ["shoulders"] },
     { id: "Tricep_Dumbbell_Kickback", eq: "dumbbells" },
     { id: "Bench_Dips", eq: "bodyweight", avoid: ["shoulders"] },
@@ -195,6 +221,8 @@ const PATTERNS: Record<Pattern, Option[]> = {
   triceps_alt: [
     { id: "Cable_Rope_Overhead_Triceps_Extension", eq: "gym", avoid: ["shoulders"] },
     { id: "EZ-Bar_Skullcrusher", eq: "gym" },
+    { id: "Lying_Triceps_Press", eq: "gym" },
+    { id: "Close-Grip_Barbell_Bench_Press", eq: "gym", avoid: ["shoulders"] },
     { id: "Tricep_Dumbbell_Kickback", eq: "dumbbells" },
     { id: "Push-Ups_-_Close_Triceps_Position", eq: "bodyweight" },
   ],
@@ -202,10 +230,14 @@ const PATTERNS: Record<Pattern, Option[]> = {
     { id: "Cable_Crunch", eq: "gym", avoid: ["lower_back"] },
     { id: "Plank", eq: "bodyweight" },
     { id: "Leg_Pull-In", eq: "bodyweight", avoid: ["lower_back"] },
+    { id: "Decline_Crunch", eq: "gym", avoid: ["lower_back"] },
+    { id: "Hanging_Leg_Raise", eq: "bodyweight", avoid: ["lower_back"] },
   ],
   core_alt: [
     { id: "Dead_Bug", eq: "bodyweight" },
     { id: "Side_Bridge", eq: "bodyweight" },
+    { id: "Cross-Body_Crunch", eq: "bodyweight", avoid: ["lower_back"] },
+    { id: "Dumbbell_Side_Bend", eq: "dumbbells" },
   ],
 };
 
@@ -546,4 +578,53 @@ export function swapPrescription(old: PlanExercise, newId: string, goal: Goal): 
 export function addedPrescription(exerciseId: string, goal: Goal, experience: Experience): PlanExercise {
   const s = scheme(goal, "accessory", experience);
   return { exerciseId, sets: s.sets, reps: repsFor(exerciseId, s.reps, goal), restSec: s.restSec };
+}
+
+/** Every hand-picked exercise once, with the equipment level it needs. */
+const CURATED: Option[] = [...new Map(Object.values(PATTERNS).flat().map((o) => [o.id, o] as const)).values()];
+
+function libraryTier(equipment?: string): EquipmentAccess {
+  if (!equipment || equipment === "body only" || equipment === "none") return "bodyweight";
+  return equipment === "dumbbell" ? "dumbbells" : "gym";
+}
+
+/**
+ * Replaces every exercise in a day with a different one for the same movement (or, failing that,
+ * the same muscle). Prefers the same equipment level as the current exercise, never repeats an
+ * exercise within the day, and picks at random so each call gives a new mix.
+ */
+export function shuffleDay(day: PlanDay, input: Pick<PlannerInput, "equipment" | "limitations" | "experience" | "goal">, random = Math.random): PlanDay {
+  const fits = (o: Option) => EQ_RANK[o.eq] <= EQ_RANK[input.equipment] && !o.avoid?.some((l) => input.limitations.includes(l));
+  const pickRandom = <T,>(items: T[]) => items[Math.floor(random() * items.length)];
+  const used = new Set<string>();
+
+  const exercises = day.exercises.map((item) => {
+    const taken = (id: string) => id === item.exerciseId || used.has(id) || day.exercises.some((e) => e.exerciseId === id && e !== item);
+    const patterns = Object.values(PATTERNS).filter((options) => options.some((o) => o.id === item.exerciseId));
+    const currentEq = patterns.flat().find((o) => o.id === item.exerciseId)?.eq;
+    // Only hand-picked exercises, training the same main muscle the same way (compound/isolation,
+    // push/pull), so a squat isn't replaced by a glute bridge or a bench press by a neck press.
+    const current = getExercise(item.exerciseId);
+    const similar = (o: Option) => {
+      const ex = getExercise(o.id);
+      return !!ex && fits(o) && !taken(o.id) && ex.primary[0] === current?.primary[0] &&
+        (!current?.mechanic || ex.mechanic === current.mechanic) && (!current?.force || ex.force === current.force);
+    };
+    const samePattern = patterns.flat().filter(similar);
+    const anyPattern = CURATED.filter(similar);
+    const tier = currentEq ?? libraryTier(current?.equipment);
+
+    // Best first: same movement on the same equipment, then any similar exercise on the same
+    // equipment, then the same movement at another equipment level, then anything similar.
+    const newId =
+      pickRandom(samePattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
+      pickRandom(anyPattern.filter((o) => o.eq === tier).map((o) => o.id)) ??
+      pickRandom(samePattern.map((o) => o.id)) ??
+      pickRandom(anyPattern.map((o) => o.id));
+    if (!newId) return item;
+    used.add(newId);
+    return swapPrescription(item, newId, input.goal);
+  });
+
+  return { ...day, exercises };
 }

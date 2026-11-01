@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getExercise } from "@/lib/exercises";
-import { addedPrescription, splitOptions, swapPrescription, type Goal, type Experience, type SplitId } from "@/lib/planner";
-import { createPlan, getActivePlanRecord, savePlan } from "@/lib/plans";
+import { addedPrescription, shuffleDay, splitOptions, swapPrescription, type Goal, type Experience, type SplitId } from "@/lib/planner";
+import { createPlan, getActivePlanRecord, plannerInput, savePlan } from "@/lib/plans";
 
 /** Loads the user's active plan and the exercise at [day][index], or redirects if it doesn't exist. */
 async function loadForEdit(dayIdx: number, exIdx?: number) {
@@ -66,6 +66,16 @@ export async function addPlanExercise(dayIdx: number, exerciseId: string) {
   day.exercises.push(addedPrescription(exerciseId, user.profile.goal as Goal, user.profile.experience as Experience));
   await savePlan(record.id, record.plan);
   done(dayIdx);
+}
+
+/** Replaces every exercise in a day with a similar one (same muscles, sets and rest). */
+export async function shufflePlanDay(dayIdx: number, returnTo: "plan" | "today") {
+  const { user, record, day } = await loadForEdit(dayIdx);
+  record.plan.days[dayIdx] = shuffleDay(day, plannerInput(user.profile));
+  await savePlan(record.id, record.plan);
+  revalidatePath("/plan");
+  revalidatePath("/today");
+  redirect(returnTo === "today" ? "/today?shuffled=1" : `/plan?shuffled=${dayIdx}#day-${dayIdx}`);
 }
 
 /** Builds a new plan: "fresh" keeps the split and changes the exercise selection; a split id switches split. */
