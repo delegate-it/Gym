@@ -53,7 +53,10 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
               <ul className="mt-1 list-disc space-y-0.5 pl-5">
                 {plan.injuryChanges.map((c, k) => (
                   <li key={k}>
-                    {c.day}: {getExercise(c.from)?.name} → {c.to ? getExercise(c.to)?.name : <i>removed (no safe alternative)</i>}
+                    {c.day}:{" "}
+                    {c.from === null
+                      ? <>added {getExercise(c.to ?? "")?.name}</>
+                      : <>{getExercise(c.from)?.name} → {c.to ? getExercise(c.to)?.name : <i>removed (no safe alternative)</i>}</>}
                   </li>
                 ))}
               </ul>

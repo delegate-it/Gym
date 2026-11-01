@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CATEGORIES, EQUIPMENT, MUSCLES, searchExercises } from "@/lib/exercises";
 import { requireUser } from "@/lib/auth";
-import { injuryConflicts, injuryLabel, parseLimitations } from "@/lib/injuries";
+import { injuryWarning } from "@/lib/plans";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { ActionButton } from "@/components/ActionButton";
 import { addExercise } from "@/app/actions/workout";
@@ -31,8 +31,7 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const picker = pickerMode(sp);
   const { profile } = await requireUser();
-  const injured = parseLimitations(profile.limitations);
-  const describedAvoid = new Set(profile.injuryAvoid.split(",").filter(Boolean));
+
   const results = searchExercises(sp);
   const page = Math.max(1, Number(sp.page) || 1);
   const shown = results.slice(0, page * PAGE);
@@ -82,10 +81,7 @@ export default async function ExercisesPage({ searchParams }: { searchParams: Pr
                 <p className="truncate text-xs muted">{e.primary.map(cap).join(", ")} · {cap(e.equipment)}</p>
                 <p className="mt-1 flex flex-wrap gap-1 text-xs">
                   <span className="chip">{cap(e.level)}</span>
-                  {injuryConflicts(e, injured).map((l) => (
-                    <span key={l} className="chip bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">⚠️ {injuryLabel(l)}</span>
-                  ))}
-                  {describedAvoid.has(e.id) && injuryConflicts(e, injured).length === 0 && (
+                  {injuryWarning(e, profile) && (
                     <span className="chip bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">⚠️ Your injury</span>
                   )}
                 </p>
