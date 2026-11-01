@@ -30,6 +30,7 @@ export async function getActivePlanRecord(userId: string) {
   return record ? { id: record.id, plan: parsePlan(record.data) } : null;
 }
 
-export async function savePlan(id: string, plan: TrainingPlan) {
-  await db.plan.update({ where: { id }, data: { data: JSON.stringify({ ...plan, edited: true }) } });
+/** Saves changes to a plan; hand edits mark it as customised, automatic adjustments don't. */
+export async function savePlan(id: string, plan: TrainingPlan, { byUser = true } = {}) {
+  await db.plan.update({ where: { id }, data: { data: JSON.stringify({ ...plan, edited: plan.edited || byUser }) } });
 }

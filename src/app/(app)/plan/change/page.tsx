@@ -66,7 +66,7 @@ export default async function ChangePlan() {
       <section className="card space-y-3">
         <div>
           <h2 className="font-bold">✏️ Change my answers</h2>
-          <p className="text-sm muted">Different goal, days per week, session length, equipment or problem areas.</p>
+          <p className="text-sm muted">Different goal, days per week, session length, equipment or injuries.</p>
         </div>
         <Link href="/profile" className="btn-ghost w-full py-2">Update my answers</Link>
       </section>

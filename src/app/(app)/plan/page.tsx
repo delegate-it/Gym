@@ -2,13 +2,14 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getActivePlan, getNextDayIndex } from "@/lib/data";
 import { getExercise } from "@/lib/exercises";
+import { injuryLabel, parseLimitations } from "@/lib/injuries";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { StartButton } from "@/components/StartButton";
 import { ActionButton } from "@/components/ActionButton";
 import { shufflePlanDay } from "@/app/actions/plan";
 
-export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string; rebuilt?: string; shuffled?: string }> }) {
-  const { welcome, rebuilt, shuffled } = await searchParams;
+export default async function PlanPage({ searchParams }: { searchParams: Promise<{ welcome?: string; rebuilt?: string; shuffled?: string; injuries?: string }> }) {
+  const { welcome, rebuilt, shuffled, injuries } = await searchParams;
   const user = await requireUser();
   const plan = await getActivePlan(user.id);
   if (!plan) {
@@ -20,6 +21,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
     );
   }
   const nextIdx = await getNextDayIndex(user.id, plan.id, plan.days.length);
+  const injured = parseLimitations(user.profile.limitations);
 
   return (
     <div className="space-y-5">
@@ -33,6 +35,27 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
       {rebuilt && (
         <div className="rounded-2xl bg-brand-50 p-4 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
           ✅ Your new plan is ready. It starts from Day 1, and your history is kept.
+        </div>
+      )}
+
+      {injuries && (
+        <div className="rounded-2xl bg-brand-50 p-4 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+          {!injured.length ? (
+            <p>✅ Injuries cleared. Use <b>Change plan → Fresh exercises</b> to bring back the full exercise selection.</p>
+          ) : !plan.injuryChanges?.length ? (
+            <p>✅ Your plan already avoids {injured.map((l) => injuryLabel(l).toLowerCase()).join(", ")} — nothing needed to change.</p>
+          ) : (
+            <>
+              <p className="font-semibold">✅ Plan adjusted for your {injured.map((l) => injuryLabel(l).toLowerCase()).join(", ")}:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {plan.injuryChanges.map((c, k) => (
+                  <li key={k}>
+                    {c.day}: {getExercise(c.from)?.name} → {c.to ? getExercise(c.to)?.name : <i>removed (no safe alternative)</i>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
 
@@ -60,6 +83,15 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
         })}
       </div>
       <p className="-mt-3 text-xs muted">Suggested schedule — train on any days you like, just keep the order and rest a day between hard sessions when you can.</p>
+
+      <Link href="/plan/injuries" className="card flex items-center gap-3 p-3">
+        <span className="text-2xl">🩹</span>
+        <span className="min-w-0 flex-1 text-sm">
+          <b>{injured.length ? "Injuries: " + injured.map(injuryLabel).join(", ") : "Injured or in pain?"}</b>
+          <span className="block muted">{injured.length ? "Your plan avoids exercises that load these areas. Tap to update." : "Tell us where, and we'll swap out exercises that load it."}</span>
+        </span>
+        <span className="muted">›</span>
+      </Link>
 
       {plan.days.map((day, i) => (
         <section key={i} id={`day-${i}`} className={`card scroll-mt-20 ${i === nextIdx ? "ring-2 ring-brand-500" : ""}`}>
@@ -99,6 +131,7 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
               + Add exercise
             </Link>
           </div>
+          {day.note && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">🩹 {day.note}</p>}
           {day.cardio && <p className="mt-2 rounded-lg bg-zinc-100 p-2 text-xs dark:bg-zinc-800">🏃 {day.cardio}</p>}
         </section>
       ))}
