@@ -16,12 +16,22 @@ export function InjuryInfo({ info, avoidIds }: { info: Omit<InjuryAnalysis, "avo
         <p className="muted">Areas protected: {info.areas.map(injuryLabel).join(", ")}</p>
       )}
       {avoidIds.length > 0 && (
-        <p className="muted">Also avoiding: {avoidIds.map((id) => getExercise(id)?.name ?? id).join(", ")}</p>
+        <details className="rounded-lg bg-zinc-50 p-2 dark:bg-zinc-800/50">
+          <summary className="cursor-pointer font-medium">{avoidIds.length} exercises checked and left out</summary>
+          <ul className="mt-2 space-y-1.5">
+            {avoidIds.map((id) => (
+              <li key={id}>
+                <b>{getExercise(id)?.name ?? id}</b>
+                {info.avoidReasons[id] && <span className="muted"> — {info.avoidReasons[id]}</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {info.advice.length > 0 && (
         <ul className="list-disc space-y-1 pl-5">{info.advice.map((a) => <li key={a}>{a}</li>)}</ul>
       )}
-      <p className="text-xs muted">{info.source === "ai" ? "Analysed by Claude (AI)." : "Matched from common injury terms."}</p>
+      <p className="text-xs muted">{info.source === "ai" ? "Every exercise was checked against your injury by Claude (AI)." : "Matched from common injury terms."}</p>
     </div>
   );
 }
